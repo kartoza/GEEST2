@@ -22,7 +22,7 @@ from qgis.PyQt.QtWidgets import (
 )
 from qgis.PyQt.QtCore import Qt, pyqtSignal
 from .toggle_switch import ToggleSwitch
-from .geest_widget_factory import GeestWidgetFactory
+from GEEST2.geest.gui.widgets.geest_widget_factory import GeestWidgetFactory
 
 
 class LayerDetailDialog(QDialog):
