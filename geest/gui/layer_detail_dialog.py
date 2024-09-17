@@ -22,7 +22,7 @@ from qgis.PyQt.QtWidgets import (
 )
 from qgis.PyQt.QtCore import Qt, pyqtSignal
 from .toggle_switch import ToggleSwitch
-from GEEST2.geest.gui.widgets.geest_widget_factory import GeestWidgetFactory
+from .widgets.geest_widget_factory import GeestWidgetFactory
 
 
 class LayerDetailDialog(QDialog):
@@ -44,6 +44,7 @@ class LayerDetailDialog(QDialog):
 
         # Heading for the dialog
         heading_label = QLabel(layer_name)
+        heading_label.setStyleSheet("font-weight: bold; font-size: 16px;")
         layout.addWidget(heading_label)
 
         # Create a horizontal splitter to hold both the Markdown editor and the preview
@@ -83,7 +84,7 @@ class LayerDetailDialog(QDialog):
         if self.editing:
             layout.addWidget(self.table)
 
-        # Add the configuration frame with radio buttons
+        # Add the configuration frame with radio buttons using the widget factory
         self.add_config_widgets(layout)
 
         # Close button
@@ -149,36 +150,28 @@ class LayerDetailDialog(QDialog):
 
     def add_config_widgets(self, layout):
         """
-        Add a frame widget containing radio buttons for 'Use' attributes that are True.
+        Add widgets created by the GeestWidgetFactory based on 'Use' attributes.
         """
-        frame = QFrame()
-        frame_layout = QVBoxLayout()
+        # Use the factory to create the necessary widgets
+        widgets_container = GeestWidgetFactory.create_widgets(self.layer_data, self)
 
-        # Using the factory. here we go...
-        config_dict = self.layer_data
-        config_widget = GeestWidgetFactory.create_widgets_from_dict(config_dict, frame)
-
-        if config_widget:
-            frame_layout.addWidget(config_widget)
-
-        frame.setLayout(frame_layout)
-        layout.addWidget(frame)
+        if widgets_container:
+            layout.addWidget(widgets_container)
 
     def on_close(self):
         """Handle the dialog close event by writing the edited data back to the TreeView item."""
         updated_data = self.get_updated_data_from_table()
 
         # Set 'Analysis Mode' based on the selected radio button
-        selected_button = self.button_group.checkedButton()
-        if selected_button:
-            updated_data["Analysis Mode"] = selected_button.text()
+        # Note: The GeestWidgetFactory handles widget visibility; retrieve which widget is active if needed
+        # This requires additional implementation based on specific requirements
 
         self.dataUpdated.emit(updated_data)  # Emit the updated data as a dictionary
         self.close()
 
     def get_updated_data_from_table(self):
         """Convert the table back into a dictionary with any changes made, including the Markdown text."""
-        updated_data = self.layer_data
+        updated_data = self.layer_data.copy()  # To avoid mutating the original data
 
         # Loop through the table and collect other data
         for row in range(self.table.rowCount()):
