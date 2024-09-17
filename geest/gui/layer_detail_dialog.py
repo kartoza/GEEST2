@@ -22,6 +22,7 @@ from qgis.PyQt.QtWidgets import (
 )
 from qgis.PyQt.QtCore import Qt, pyqtSignal
 from .toggle_switch import ToggleSwitch
+from .geest_widget_factory import GeestWidgetFactory
 
 
 class LayerDetailDialog(QDialog):
@@ -99,7 +100,7 @@ class LayerDetailDialog(QDialog):
         """Populate the table with all key-value pairs except 'indicator'."""
         filtered_data = {k: v for k, v in self.layer_data.items() if k != "indicator"}
         self.table.setRowCount(len(filtered_data))
-        
+
         for row, (key, value) in enumerate(filtered_data.items()):
             # Column 1: Key (Property name, read-only)
             key_item = QTableWidgetItem(str(key))
@@ -153,26 +154,12 @@ class LayerDetailDialog(QDialog):
         frame = QFrame()
         frame_layout = QVBoxLayout()
 
-        # Find all keys that start with 'Use' and have a value of True
-        use_keys = {k: v for k, v in self.layer_data.items() if k.startswith("Use") and v}
+        # Using the factory. here we go...
+        config_dict = self.layer_data
+        config_widget = GeestWidgetFactory.create_widgets_from_dict(config_dict, frame)
 
-        if use_keys:
-            for i, key in enumerate(use_keys):
-                radio_button = QRadioButton(key)
-                self.radio_buttons.append(radio_button)
-                frame_layout.addWidget(radio_button)
-
-                # Check the first radio button by default
-                if i == 0:
-                    radio_button.setChecked(True)
-
-                # Add the radio button to the button group
-                self.button_group.addButton(radio_button)
-
-                # Add a label next to the radio button with the key's name
-                # Todo @hennie replace this with widget factory
-                label = QLabel(key)
-                frame_layout.addWidget(label)
+        if config_widget:
+            frame_layout.addWidget(config_widget)
 
         frame.setLayout(frame_layout)
         layout.addWidget(frame)
@@ -214,5 +201,5 @@ class LayerDetailDialog(QDialog):
         # Include the Markdown text from the left text edit
         # Special case so we need to write it last
         updated_data["Text"] = self.text_edit_left.toPlainText()
-        
+
         return updated_data
