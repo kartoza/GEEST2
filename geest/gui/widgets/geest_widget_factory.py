@@ -16,6 +16,10 @@ from qgis.PyQt.QtWidgets import (
 from qgis.PyQt.QtCore import Qt
 from qgis.gui import QgsMapLayerComboBox
 from qgis.core import QgsMapLayer
+import logging
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 class GeestWidgetFactory:
     @staticmethod
@@ -131,6 +135,13 @@ class GeestWidgetFactory:
                 "type": "layer_selector",
                 "layer_type": "point",
                 "tooltip": "Select a point layer."
+            },
+            "Use Rasterize Layer": {  # Added missing mapping
+                "label": "Rasterize Layer",
+                "description": "Using this option, you can rasterize a vector layer.",
+                "type": "layer_selector",
+                "layer_type": "raster",
+                "tooltip": "Select a raster layer to rasterize."
             }
         }
 
@@ -158,10 +169,17 @@ class GeestWidgetFactory:
             for idx, (use_key, value) in enumerate(use_keys_enabled.items()):
                 mapping = use_keys_mapping.get(use_key)
                 if not mapping:
+                    logger.warning(f"No mapping found for key: {use_key}. Skipping.")
                     continue  # Skip if no mapping defined
 
+                # Handle 'Use Other Downloader' with dynamic source
+                if use_key == "Use Other Downloader" and isinstance(value, str) and value:
+                    label_text = f"Fetch the data from {value}"
+                else:
+                    label_text = mapping["label"]
+
                 # Create radio button
-                radio_button = QRadioButton(mapping["label"])
+                radio_button = QRadioButton(label_text)
                 radio_group.addButton(radio_button, id=idx)
                 radio_group_layout.addWidget(radio_button)
 
@@ -170,10 +188,12 @@ class GeestWidgetFactory:
                 widget_layout = QVBoxLayout()
                 widget_container.setLayout(widget_layout)
 
-                # Add description
-                description_label = QLabel(mapping["description"])
-                description_label.setWordWrap(True)
-                widget_layout.addWidget(description_label)
+                # Add description if available
+                description = mapping.get("description")
+                if description:
+                    description_label = QLabel(description)
+                    description_label.setWordWrap(True)
+                    widget_layout.addWidget(description_label)
 
                 # Create the actual widget based on type
                 widget = GeestWidgetFactory.create_specific_widget(mapping, layer_data)
@@ -203,12 +223,21 @@ class GeestWidgetFactory:
             use_key, value = next(iter(use_keys_enabled.items()))
             mapping = use_keys_mapping.get(use_key)
             if not mapping:
+                logger.warning(f"No mapping found for key: {use_key}. Skipping.")
                 return container  # Return empty or handle generically
 
-            # Add description
-            description_label = QLabel(mapping["description"])
-            description_label.setWordWrap(True)
-            main_layout.addWidget(description_label)
+            # Handle 'Use Other Downloader' with dynamic source
+            if use_key == "Use Other Downloader" and isinstance(value, str) and value:
+                label_text = f"Fetch the data from {value}"
+            else:
+                label_text = mapping["label"]
+
+            # Add description if available
+            description = mapping.get("description")
+            if description:
+                description_label = QLabel(description)
+                description_label.setWordWrap(True)
+                main_layout.addWidget(description_label)
 
             # Create the actual widget based on type
             widget = GeestWidgetFactory.create_specific_widget(mapping, layer_data)
@@ -276,7 +305,7 @@ class GeestWidgetFactory:
             # Create a layout with:
             # - QLineEdit for file path
             # - QPushButton to browse files
-            # - Two QComboBox for longitude and latitude fields
+            # - Two QComboBox for longitude and latitude columns
             container = QWidget()
             layout = QHBoxLayout()
             container.setLayout(layout)
@@ -334,6 +363,7 @@ class GeestWidgetFactory:
 
         else:
             # Handle other widget types or return None
+            logger.warning(f"Unknown widget type: {widget_type}")
             return None
 
     @staticmethod
@@ -373,6 +403,7 @@ class GeestWidgetFactory:
                 lat_combo.setEnabled(True)
         except Exception as e:
             # Handle errors (e.g., invalid CSV format)
+            logger.error(f"Error reading CSV file: {e}")
             lon_combo.clear()
             lat_combo.clear()
             lon_combo.setEnabled(False)
