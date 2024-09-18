@@ -22,26 +22,11 @@ from qgis.PyQt.QtWidgets import (
     QTextEdit,
     QVBoxLayout,
     QWidget,
-<<<<<<< HEAD
-    QSplitter,
-    QFrame,
-    QRadioButton,
-    QButtonGroup,
-=======
->>>>>>> origin/tim
 )
 from qgis.PyQt.QtGui import QPixmap
 from qgis.PyQt.QtCore import Qt, pyqtSignal
 from .toggle_switch import ToggleSwitch
-<<<<<<< HEAD
-from .widgets.geest_widget_factory import GeestWidgetFactory  # Corrected import
-import logging
-
-# Configure logging
-logger = logging.getLogger(__name__)
-=======
 from geest.utilities import resources_path
->>>>>>> origin/tim
 
 
 class LayerDetailDialog(QDialog):
@@ -54,7 +39,7 @@ class LayerDetailDialog(QDialog):
         super().__init__(parent)
 
         self.setWindowTitle(layer_name)
-        self.layer_data = layer_data.copy()  # Use a copy to prevent unintended mutations
+        self.layer_data = layer_data
         self.tree_item = tree_item  # Reference to the QTreeView item to update
         self.editing = editing
         self.radio_buttons = []  # To keep track of the radio buttons for later
@@ -89,10 +74,6 @@ class LayerDetailDialog(QDialog):
 
         # Heading for the dialog
         heading_label = QLabel(layer_name)
-<<<<<<< HEAD
-        heading_label.setStyleSheet("font-weight: bold; font-size: 16px;")
-        layout.addWidget(heading_label)
-=======
         heading_label.setStyleSheet(
             "font-size: 18px; font-weight: bold;"
         )  # Bold heading
@@ -110,7 +91,6 @@ class LayerDetailDialog(QDialog):
         )  # Stretch horizontally, fixed vertically
 
         layout.addWidget(self.banner_label)
->>>>>>> origin/tim
 
         # Create a horizontal splitter to hold both the Markdown editor and the preview
         splitter = QSplitter(Qt.Horizontal)
@@ -159,15 +139,6 @@ class LayerDetailDialog(QDialog):
         if self.editing:
             layout.addWidget(self.table)
 
-<<<<<<< HEAD
-        # Add the configuration frame with radio buttons using the widget factory
-        self.add_config_widgets(layout)
-
-        # Close button
-        close_button = QPushButton("Close")
-        close_button.clicked.connect(self.on_close)  # Connect close button to custom close handler
-        layout.addWidget(close_button)
-=======
         # Add the configuration frame with radio buttons
         self.add_config_widgets(layout)
 
@@ -176,7 +147,6 @@ class LayerDetailDialog(QDialog):
         button_box.accepted.connect(self.accept_changes)  # Connect OK to accept_changes
         button_box.rejected.connect(self.reject)  # Connect Cancel to reject the dialog
         layout.addWidget(button_box, alignment=Qt.AlignBottom)  # Place at the bottom
->>>>>>> origin/tim
 
         self.setLayout(layout)
 
@@ -238,22 +208,6 @@ class LayerDetailDialog(QDialog):
 
     def add_config_widgets(self, layout):
         """
-<<<<<<< HEAD
-        Add widgets created by the GeestWidgetFactory based on 'Use' attributes.
-        """
-        # Use the factory to create the necessary widgets
-        widgets_container = GeestWidgetFactory.create_widgets(self.layer_data, self)
-
-        if widgets_container:
-            layout.addWidget(widgets_container)
-
-    def on_close(self):
-        """Handle the dialog close event by writing the edited data back to the TreeView item."""
-        updated_data = self.get_updated_data_from_table()
-
-        # Here, you can add additional data processing if needed
-        # For example, retrieving values from widgets created by the factory
-=======
         Add a frame widget containing radio buttons for 'Use' attributes that are True.
         """
         frame = QFrame()
@@ -292,18 +246,13 @@ class LayerDetailDialog(QDialog):
         selected_button = self.button_group.checkedButton()
         if selected_button:
             updated_data["Analysis Mode"] = selected_button.text()
->>>>>>> origin/tim
 
         self.dataUpdated.emit(updated_data)  # Emit the updated data as a dictionary
         self.accept()  # Close the dialog
 
     def get_updated_data_from_table(self):
         """Convert the table back into a dictionary with any changes made, including the Markdown text."""
-<<<<<<< HEAD
-        updated_data = self.layer_data.copy()  # To avoid mutating the original data
-=======
         updated_data = self.layer_data
->>>>>>> origin/tim
 
         # Loop through the table and collect other data
         for row in range(self.table.rowCount()):
@@ -332,11 +281,4 @@ class LayerDetailDialog(QDialog):
         # Include the Markdown text from the left text edit
         updated_data["Text"] = self.text_edit_left.toPlainText()
 
-<<<<<<< HEAD
-        # Include the Markdown text from the left text edit
-        # Special case so we need to write it last
-        updated_data["Text"] = self.text_edit_left.toPlainText()
-
-=======
->>>>>>> origin/tim
         return updated_data
