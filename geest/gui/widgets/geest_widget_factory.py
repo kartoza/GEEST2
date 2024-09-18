@@ -136,7 +136,7 @@ class GeestWidgetFactory:
                 "layer_type": "point",
                 "tooltip": "Select a point layer."
             },
-            "Use Rasterize Layer": {  # Added missing mapping
+            "Use Rasterize Layer": {
                 "label": "Rasterize Layer",
                 "description": "Using this option, you can rasterize a vector layer.",
                 "type": "layer_selector",

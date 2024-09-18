@@ -22,7 +22,11 @@ from qgis.PyQt.QtWidgets import (
 )
 from qgis.PyQt.QtCore import Qt, pyqtSignal
 from .toggle_switch import ToggleSwitch
-from .widgets.geest_widget_factory import GeestWidgetFactory
+from .widgets.geest_widget_factory import GeestWidgetFactory  # Corrected import
+import logging
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 
 class LayerDetailDialog(QDialog):
@@ -35,7 +39,7 @@ class LayerDetailDialog(QDialog):
         super().__init__(parent)
 
         self.setWindowTitle(layer_name)
-        self.layer_data = layer_data
+        self.layer_data = layer_data.copy()  # Use a copy to prevent unintended mutations
         self.tree_item = tree_item  # Reference to the QTreeView item to update
         self.editing = editing
         self.radio_buttons = []  # To keep track of the radio buttons for later
@@ -162,9 +166,8 @@ class LayerDetailDialog(QDialog):
         """Handle the dialog close event by writing the edited data back to the TreeView item."""
         updated_data = self.get_updated_data_from_table()
 
-        # Set 'Analysis Mode' based on the selected radio button
-        # Note: The GeestWidgetFactory handles widget visibility; retrieve which widget is active if needed
-        # This requires additional implementation based on specific requirements
+        # Here, you can add additional data processing if needed
+        # For example, retrieving values from widgets created by the factory
 
         self.dataUpdated.emit(updated_data)  # Emit the updated data as a dictionary
         self.close()
