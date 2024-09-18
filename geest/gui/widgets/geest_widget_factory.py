@@ -4,7 +4,6 @@ from qgis.PyQt.QtWidgets import (
     QHBoxLayout,
     QRadioButton,
     QLabel,
-    QPushButton,
     QButtonGroup,
     QLineEdit,
     QCheckBox,
@@ -14,25 +13,22 @@ from qgis.PyQt.QtWidgets import (
     QFileDialog,
 )
 from qgis.PyQt.QtCore import Qt
-from qgis.gui import QgsMapLayerComboBox
-from qgis.core import QgsMapLayer
-import logging
+from qgis.gui import QgsMapLayerComboBox, QgsFileWidget
+from qgis.core import QgsMapLayer, QgsMapLayerProxyModel
 
-# Configure logging
-logger = logging.getLogger(__name__)
 
 class GeestWidgetFactory:
+    valid_subtypes = {
+        "point": "point",
+        "line": "line",
+        "polyline": "line",
+        "polygon": "polygon",
+        "raster": "raster",
+        "vector": "vector",
+    }
+
     @staticmethod
     def create_widgets(layer_data: dict, parent=None):
-        """
-        Create widgets based on the provided layer_data dictionary.
-        If multiple widgets are to be created, include radio buttons for selection.
-
-        :param layer_data: Dictionary containing layer properties.
-        :param parent: Parent widget.
-        :return: QWidget containing the created widgets.
-        """
-        # Define mappings for 'Use' keys to widget specifications
         use_keys_mapping = {
             "Use Default Index Score": {
                 "label": "Default Index Score",
@@ -65,36 +61,6 @@ class GeestWidgetFactory:
                 "default": layer_data.get("Default pixel", 0),
                 "tooltip": "Enter pixel size for grid creation."
             },
-            "Use OSM Downloader": {
-                "label": "Fetch the data from OSM",
-                "description": "Using this option, we will try to fetch the data needed for this indicator directly from OSM.",
-                "type": "download_button",
-                "tooltip": "Download data from OSM."
-            },
-            "Use WBL Downloader": {
-                "label": "Fetch the data from WBL",
-                "description": "Using this option, we will try to fetch the data needed for this indicator directly from WBL.",
-                "type": "download_button",
-                "tooltip": "Download data from WBL."
-            },
-            "Use Humdata Downloader": {
-                "label": "Fetch the data from HumData",
-                "description": "Using this option, we will try to fetch the data needed for this indicator directly from HumData.",
-                "type": "download_button",
-                "tooltip": "Download data from HumData."
-            },
-            "Use Mapillary Downloader": {
-                "label": "Fetch the data from Mapillary",
-                "description": "Using this option, we will try to fetch the data needed for this indicator directly from Mapillary.",
-                "type": "download_button",
-                "tooltip": "Download data from Mapillary."
-            },
-            "Use Other Downloader": {
-                "label": "Fetch the data from Other Source",
-                "description": f"Using this option, we will try to fetch the data needed for this indicator directly from {layer_data.get('Use Other Downloader', '')}.",
-                "type": "download_button",
-                "tooltip": f"Download data from {layer_data.get('Use Other Downloader', 'Other Source')}."
-            },
             "Use Add Layers Manually": {
                 "label": "Add Layers Manually",
                 "description": "Using this option, you can add layers manually.",
@@ -126,8 +92,8 @@ class GeestWidgetFactory:
                 "label": "Polyline per Cell",
                 "description": "Using this option, create a polyline per grid cell.",
                 "type": "layer_selector",
-                "layer_type": "polyline",
-                "tooltip": "Select a polyline layer."
+                "layer_type": "line",
+                "tooltip": "Select a line layer."
             },
             "Use Point per Cell": {
                 "label": "Point per Cell",
@@ -140,109 +106,84 @@ class GeestWidgetFactory:
                 "label": "Rasterize Layer",
                 "description": "Using this option, you can rasterize a vector layer.",
                 "type": "layer_selector",
-                "layer_type": "raster",
+                "layer_type": "all",
                 "tooltip": "Select a raster layer to rasterize."
+            },
+
+            "Use OSM Downloader": {
+                "label": "Fetch the data from OSM",
+                "description": "Using this option, we will try to fetch the data needed for this indicator directly from OSM.",
+                "type": "download_option",
+                "tooltip": "Download data from OSM."
+            },
+            "Use WBL Downloader": {
+                "label": "Fetch the data from WBL",
+                "description": "Using this option, we will try to fetch the data needed for this indicator directly from WBL.",
+                "type": "download_option",
+                "tooltip": "Download data from WBL."
+            },
+            "Use Humdata Downloader": {
+                "label": "Fetch the data from HumData",
+                "description": "Using this option, we will try to fetch the data needed for this indicator directly from HumData.",
+                "type": "download_option",
+                "tooltip": "Download data from HumData."
+            },
+            "Use Mapillary Downloader": {
+                "label": "Fetch the data from Mapillary",
+                "description": "Using this option, we will try to fetch the data needed for this indicator directly from Mapillary.",
+                "type": "download_option",
+                "tooltip": "Download data from Mapillary."
+            },
+            "Use Other Downloader": {
+                "label": "Fetch the data from Other Source",
+                "description": f"Using this option, we will try to fetch the data needed for this indicator directly from {layer_data.get('Use Other Downloader', '')}.",
+                "type": "download_option",
+                "tooltip": f"Download data from {layer_data.get('Use Other Downloader', 'Other Source')}."
             }
         }
 
-        # Identify all 'Use' keys that are enabled
         use_keys_enabled = {k: v for k, v in layer_data.items() if k.startswith("Use") and v}
 
-        # If no 'Use' keys are enabled, return an empty widget
         if not use_keys_enabled:
             return QWidget()
 
-        # Prepare to create widgets
         container = QWidget(parent)
         main_layout = QVBoxLayout()
         container.setLayout(main_layout)
 
-        # Check how many 'Use' keys are enabled
-        if len(use_keys_enabled) > 1:
-            # Create radio buttons for selection
-            radio_group_layout = QHBoxLayout()
-            radio_group = QButtonGroup(container)
-            radio_group.setExclusive(True)
+        radio_group = QButtonGroup(container)
+        radio_group.setExclusive(True)
 
-            widget_containers = []
-
-            for idx, (use_key, value) in enumerate(use_keys_enabled.items()):
-                mapping = use_keys_mapping.get(use_key)
-                if not mapping:
-                    logger.warning(f"No mapping found for key: {use_key}. Skipping.")
-                    continue  # Skip if no mapping defined
-
-                # Handle 'Use Other Downloader' with dynamic source
-                if use_key == "Use Other Downloader" and isinstance(value, str) and value:
-                    label_text = f"Fetch the data from {value}"
-                else:
-                    label_text = mapping["label"]
-
-                # Create radio button
-                radio_button = QRadioButton(label_text)
-                radio_group.addButton(radio_button, id=idx)
-                radio_group_layout.addWidget(radio_button)
-
-                # Create a container for the associated widgets
-                widget_container = QWidget()
-                widget_layout = QVBoxLayout()
-                widget_container.setLayout(widget_layout)
-
-                # Add description if available
-                description = mapping.get("description")
-                if description:
-                    description_label = QLabel(description)
-                    description_label.setWordWrap(True)
-                    widget_layout.addWidget(description_label)
-
-                # Create the actual widget based on type
-                widget = GeestWidgetFactory.create_specific_widget(mapping, layer_data)
-                if widget:
-                    widget_layout.addWidget(widget)
-
-                # Initially hide all widget containers
-                widget_container.setVisible(False)
-                widget_containers.append(widget_container)
-
-                # Connect radio button to show/hide widgets
-                radio_button.toggled.connect(lambda checked, wc=widget_container: wc.setVisible(checked))
-
-            # Add radio buttons layout to main layout
-            main_layout.addLayout(radio_group_layout)
-
-            # Add all widget containers to main layout
-            for wc in widget_containers:
-                main_layout.addWidget(wc)
-
-            # Select the first radio button by default
-            if radio_group.buttons():
-                radio_group.buttons()[0].setChecked(True)
-
-        else:
-            # Only one 'Use' key is enabled, no radio buttons needed
-            use_key, value = next(iter(use_keys_enabled.items()))
+        for idx, (use_key, value) in enumerate(use_keys_enabled.items()):
             mapping = use_keys_mapping.get(use_key)
             if not mapping:
-                logger.warning(f"No mapping found for key: {use_key}. Skipping.")
-                return container  # Return empty or handle generically
+                print(f"No mapping found for key: {use_key}. Skipping.")
+                continue
 
-            # Handle 'Use Other Downloader' with dynamic source
-            if use_key == "Use Other Downloader" and isinstance(value, str) and value:
-                label_text = f"Fetch the data from {value}"
-            else:
-                label_text = mapping["label"]
+            option_container = QWidget()
+            option_layout = QVBoxLayout()
+            option_container.setLayout(option_layout)
 
-            # Add description if available
-            description = mapping.get("description")
-            if description:
-                description_label = QLabel(description)
+            radio_button = QRadioButton(mapping["label"])
+            radio_group.addButton(radio_button, id=idx)
+            option_layout.addWidget(radio_button)
+
+            if "description" in mapping:
+                description_label = QLabel(mapping["description"])
                 description_label.setWordWrap(True)
-                main_layout.addWidget(description_label)
+                option_layout.addWidget(description_label)
 
-            # Create the actual widget based on type
             widget = GeestWidgetFactory.create_specific_widget(mapping, layer_data)
             if widget:
-                main_layout.addWidget(widget)
+                option_layout.addWidget(widget)
+
+            main_layout.addWidget(option_container)
+
+            radio_button.toggled.connect(lambda checked, w=widget: w.setEnabled(checked))
+            widget.setEnabled(False)  # Initially disable all widgets
+
+        if radio_group.buttons():
+            radio_group.buttons()[0].setChecked(True)
 
         return container
 
@@ -282,71 +223,63 @@ class GeestWidgetFactory:
 
         elif widget_type == "layer_selector":
             widget = QgsMapLayerComboBox()
-            layer_type = mapping.get("layer_type", "vector")  # 'vector' or 'raster'
-            if layer_type == "vector":
-                widget.setFilters(QgsMapLayer.VectorLayer)
+            layer_type = mapping.get("layer_type", "vector").lower()
+            if layer_type == "all":
+                widget.setFilters(QgsMapLayerProxyModel.All)
+            elif layer_type == "vector":
+                widget.setFilters(QgsMapLayerProxyModel.VectorLayer)
             elif layer_type == "raster":
-                widget.setFilters(QgsMapLayer.RasterLayer)
-            elif layer_type == "polygon":
-                widget.setFilters(QgsMapLayer.VectorLayer)
-                widget.setLayerType(QgsMapLayer.VectorLayer, "polygon")
-            elif layer_type == "polyline":
-                widget.setFilters(QgsMapLayer.VectorLayer)
-                widget.setLayerType(QgsMapLayer.VectorLayer, "polyline")
-            elif layer_type == "point":
-                widget.setFilters(QgsMapLayer.VectorLayer)
-                widget.setLayerType(QgsMapLayer.VectorLayer, "point")
-            # Add more layer types as needed
-
+                widget.setFilters(QgsMapLayerProxyModel.RasterLayer)
+            elif layer_type in ["polygon", "line", "point"]:
+                subtype_mapped = GeestWidgetFactory.valid_subtypes.get(layer_type)
+                if subtype_mapped == "polygon":
+                    widget.setFilters(QgsMapLayerProxyModel.PolygonLayer)
+                elif subtype_mapped == "line":
+                    widget.setFilters(QgsMapLayerProxyModel.LineLayer)
+                elif subtype_mapped == "point":
+                    widget.setFilters(QgsMapLayerProxyModel.PointLayer)
+                else:
+                    print(
+                        f"Invalid layer subtype '{layer_type}' for '{mapping.get('label')}'. Defaulting to all vector layers.")
+                    widget.setFilters(QgsMapLayerProxyModel.VectorLayer)
+            else:
+                print(f"Unknown layer type '{layer_type}' for '{mapping.get('label')}'. Defaulting to all layers.")
+                widget.setFilters(QgsMapLayerProxyModel.All)
             widget.setToolTip(mapping.get("tooltip", ""))
             return widget
 
         elif widget_type == "csv_to_point":
-            # Create a layout with:
-            # - QLineEdit for file path
-            # - QPushButton to browse files
-            # - Two QComboBox for longitude and latitude columns
             container = QWidget()
             layout = QHBoxLayout()
             container.setLayout(layout)
 
-            # File path line edit
-            file_path_edit = QLineEdit()
-            file_path_edit.setPlaceholderText("Select CSV file")
-            layout.addWidget(file_path_edit)
+            file_widget = QgsFileWidget(parent=container)
+            file_widget.setFilter("CSV Files (*.csv);;All Files (*.*)")
+            file_widget.setToolTip(
+                mapping.get("tooltip", "Select a CSV file containing longitude and latitude columns."))
+            layout.addWidget(file_widget)
 
-            # Browse button
-            browse_button = QPushButton("Browse")
-            layout.addWidget(browse_button)
-
-            # Connect browse button to file dialog
-            browse_button.clicked.connect(lambda: GeestWidgetFactory.browse_csv_file(file_path_edit))
-
-            # Dropdowns for longitude and latitude columns
             longitude_combo = QComboBox()
             longitude_combo.setPlaceholderText("Longitude Column")
-            longitude_combo.setEnabled(False)  # Initially disabled
+            longitude_combo.setEnabled(False)
+            longitude_combo.setToolTip("Select the column for longitude.")
             layout.addWidget(longitude_combo)
 
             latitude_combo = QComboBox()
             latitude_combo.setPlaceholderText("Latitude Column")
-            latitude_combo.setEnabled(False)  # Initially disabled
+            latitude_combo.setEnabled(False)
+            latitude_combo.setToolTip("Select the column for latitude.")
             layout.addWidget(latitude_combo)
 
-            # Connect file path edit to populate combo boxes
-            file_path_edit.textChanged.connect(lambda text: GeestWidgetFactory.populate_csv_columns(text, longitude_combo, latitude_combo))
-
-            # Set tooltips
-            file_path_edit.setToolTip(mapping.get("tooltip", "Select a CSV file containing longitude and latitude columns."))
-            longitude_combo.setToolTip("Select the column for longitude.")
-            latitude_combo.setToolTip("Select the column for latitude.")
+            file_widget.fileChanged.connect(
+                lambda path: GeestWidgetFactory.populate_csv_columns(path, longitude_combo, latitude_combo)
+            )
 
             return container
 
-        elif widget_type == "download_button":
-            # Create a horizontal layout with description and download button
+        elif widget_type == "download_option":
             container = QWidget()
-            layout = QHBoxLayout()
+            layout = QVBoxLayout()
             container.setLayout(layout)
 
             # Description label
@@ -354,16 +287,10 @@ class GeestWidgetFactory:
             description_label.setWordWrap(True)
             layout.addWidget(description_label)
 
-            # Download button (non-functional as per instructions)
-            download_button = QPushButton(mapping.get("button_text", "Download"))
-            download_button.setToolTip(mapping.get("tooltip", ""))
-            layout.addWidget(download_button)
-
             return container
 
         else:
-            # Handle other widget types or return None
-            logger.warning(f"Unknown widget type: {widget_type}")
+            print(f"Unknown widget type: {widget_type}")
             return None
 
     @staticmethod
@@ -373,7 +300,7 @@ class GeestWidgetFactory:
 
         :param line_edit: QLineEdit widget to set the file path.
         """
-        file_path, _ = QFileDialog.getOpenFileName(None, "Select CSV File", "", "CSV Files (*.csv)")
+        file_path, _ = QFileDialog.getOpenFileName(None, "Select CSV File", "", "CSV Files (*.csv);;All Files (*.*)")
         if file_path:
             line_edit.setText(file_path)
 
@@ -403,7 +330,7 @@ class GeestWidgetFactory:
                 lat_combo.setEnabled(True)
         except Exception as e:
             # Handle errors (e.g., invalid CSV format)
-            logger.error(f"Error reading CSV file: {e}")
+            print(f"Error reading CSV file: {e}")
             lon_combo.clear()
             lat_combo.clear()
             lon_combo.setEnabled(False)

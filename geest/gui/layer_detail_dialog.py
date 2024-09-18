@@ -26,7 +26,9 @@ from qgis.PyQt.QtWidgets import (
 from qgis.PyQt.QtGui import QPixmap
 from qgis.PyQt.QtCore import Qt, pyqtSignal
 from .toggle_switch import ToggleSwitch
-from geest.utilities import resources_path
+from ..utilities import resources_path
+from .widgets.geest_widget_factory import GeestWidgetFactory
+
 
 
 class LayerDetailDialog(QDialog):
@@ -39,7 +41,7 @@ class LayerDetailDialog(QDialog):
         super().__init__(parent)
 
         self.setWindowTitle(layer_name)
-        self.layer_data = layer_data
+        self.layer_data = layer_data.copy()  # Use a copy to prevent unintended mutations
         self.tree_item = tree_item  # Reference to the QTreeView item to update
         self.editing = editing
         self.radio_buttons = []  # To keep track of the radio buttons for later
@@ -139,7 +141,7 @@ class LayerDetailDialog(QDialog):
         if self.editing:
             layout.addWidget(self.table)
 
-        # Add the configuration frame with radio buttons
+        # Add the configuration widgets using GeestWidgetFactory
         self.add_config_widgets(layout)
 
         # Create a QDialogButtonBox for OK/Cancel buttons
@@ -208,35 +210,15 @@ class LayerDetailDialog(QDialog):
 
     def add_config_widgets(self, layout):
         """
-        Add a frame widget containing radio buttons for 'Use' attributes that are True.
+        Add widgets created by the GeestWidgetFactory based on 'Use' attributes.
         """
-        frame = QFrame()
-        frame_layout = QVBoxLayout()
+        # Use the factory to create the necessary widgets
+        widgets_container = GeestWidgetFactory.create_widgets(self.layer_data, self)
 
-        # Find all keys that start with 'Use' and have a value of True
-        use_keys = {
-            k: v for k, v in self.layer_data.items() if k.startswith("Use") and v
-        }
-
-        if use_keys:
-            for i, key in enumerate(use_keys):
-                radio_button = QRadioButton(key)
-                self.radio_buttons.append(radio_button)
-                frame_layout.addWidget(radio_button)
-
-                # Check the first radio button by default
-                if i == 0:
-                    radio_button.setChecked(True)
-
-                # Add the radio button to the button group
-                self.button_group.addButton(radio_button)
-
-                # Add a label next to the radio button with the key's name
-                label = QLabel(key)
-                frame_layout.addWidget(label)
-
-        frame.setLayout(frame_layout)
-        layout.addWidget(frame)
+        if widgets_container and widgets_container.layout().count() > 0:
+            layout.addWidget(widgets_container)
+        else:
+            print("No configuration widgets were created for this layer.")
 
     def accept_changes(self):
         """Handle the OK button by applying changes and closing the dialog."""
@@ -252,7 +234,7 @@ class LayerDetailDialog(QDialog):
 
     def get_updated_data_from_table(self):
         """Convert the table back into a dictionary with any changes made, including the Markdown text."""
-        updated_data = self.layer_data
+        updated_data = self.layer_data.copy()  # To avoid mutating the original data
 
         # Loop through the table and collect other data
         for row in range(self.table.rowCount()):
