@@ -222,32 +222,42 @@ class GeestWidgetFactory:
             return widget
 
         elif widget_type == "layer_selector":
-            widget = QgsMapLayerComboBox()
             layer_type = mapping.get("layer_type", "vector").lower()
+
+            # Create a container widget
+            container = QWidget()
+            layout = QVBoxLayout()
+            container.setLayout(layout)
+            widget = QgsMapLayerComboBox()
+
             if layer_type == "all":
-                widget.setLayerTypes([QgsMapLayer.VectorLayer, QgsMapLayer.RasterLayer])
+                widget.setFilters(QgsMapLayerProxyModel.All)
             elif layer_type == "vector":
-                widget.setLayerTypes([QgsMapLayer.VectorLayer])
+                widget.setFilters(QgsMapLayerProxyModel.VectorLayer)
             elif layer_type == "raster":
-                widget.setLayerTypes([QgsMapLayer.RasterLayer])
+                widget.setFilters(QgsMapLayerProxyModel.RasterLayer)
             elif layer_type in ["polygon", "line", "point"]:
                 subtype_mapped = GeestWidgetFactory.valid_subtypes.get(layer_type)
-                if subtype_mapped in ["polygon", "line", "point"]:
-                    widget.setLayerTypes([QgsMapLayer.VectorLayer])
+                if subtype_mapped == "polygon":
+                    widget.setFilters(QgsMapLayerProxyModel.PolygonLayer)
+                elif subtype_mapped == "line":
+                    widget.setFilters(QgsMapLayerProxyModel.LineLayer)
+                elif subtype_mapped == "point":
+                    widget.setFilters(QgsMapLayerProxyModel.PointLayer)
                 else:
-                    print(f"Invalid layer subtype '{layer_type}' for '{mapping.get('label')}'.")
-                    widget.setLayerTypes([QgsMapLayer.VectorLayer, QgsMapLayer.RasterLayer])
+                    print(f"Invalid layer subtype '{layer_type}' for '{mapping.get('label')}'. Defaulting to all vector layers.")
+                    widget.setFilters(QgsMapLayerProxyModel.VectorLayer)
             else:
-                print(f"Unknown layer type '{layer_type}' for '{mapping.get('label')}'.")
-                widget.setLayerTypes([QgsMapLayer.VectorLayer, QgsMapLayer.RasterLayer])
-
-            # Check if layers are available in the first place, if not, notify user
-            if widget.count() == 0:
-                label = QLabel("<No appropriate layer found>")
-                return label
+                print(f"Unknown layer type '{layer_type}' for '{mapping.get('label')}'. Defaulting to all layers.")
+                widget.setFilters(QgsMapLayerProxyModel.All)
+            widget.setToolTip(mapping.get("tooltip", ""))
+            # Check if there are any layers matching the filter, if not, complain about it
+            if widget.count() > 0:
+                layout.addWidget(widget)
             else:
-                widget.setToolTip(mapping.get("tooltip", ""))
-                return widget
+                label = QLabel("<No appropriate layer type found>")
+                layout.addWidget(label)
+            return container
 
         elif widget_type == "csv_to_point":
             container = QWidget()
