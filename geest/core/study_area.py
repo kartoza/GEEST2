@@ -16,14 +16,18 @@ from qgis.core import (
     QgsVectorFileWriter,
     QgsFields,
     QgsCoordinateTransformContext,
+    QgsTask,
     QgsMessageLog,
     Qgis,
 )
-from qgis.PyQt.QtCore import QVariant
+from qgis.PyQt.QtCore import QVariant, pyqtSignal
 import processing  # QGIS processing toolbox
 
 
-class StudyAreaProcessor:
+class StudyAreaProcessor(QgsTask):
+    progress_signal = pyqtSignal(float)
+    completion_signal = pyqtSignal(str)
+
     def __init__(
         self,
         layer: QgsVectorLayer,
@@ -33,7 +37,7 @@ class StudyAreaProcessor:
         epsg_code: Optional[int] = None,
     ):
         """
-        Initializes the StudyAreaProcessor class.
+        Initializes the StudyAreaProcessor class as a background task.
 
         :param layer: The vector layer containing study area features.
         :param field_name: The name of the field containing area names.
@@ -42,6 +46,8 @@ class StudyAreaProcessor:
         :param epsg_code: Optional EPSG code for the output CRS. If None, a UTM zone
                           is calculated based on layer extent or extent of selected features.
         """
+        super().__init__("Study Area Processing Task", QgsTask.CanCancel)
+
         self.layer: QgsVectorLayer = layer
         self.field_name: str = field_name
         self.working_dir: str = working_dir
@@ -53,11 +59,15 @@ class StudyAreaProcessor:
             try:
                 os.remove(self.gpkg_path)
                 QgsMessageLog.logMessage(
-                    f"Existing GeoPackage removed: {self.gpkg_path}", tag="Geest", level=Qgis.Info
+                    f"Existing GeoPackage removed: {self.gpkg_path}",
+                    tag="Geest",
+                    level=Qgis.Info,
                 )
             except Exception as e:
                 QgsMessageLog.logMessage(
-                    f"Error removing existing GeoPackage: {e}", tag="Geest", level=Qgis.Critical
+                    f"Error removing existing GeoPackage: {e}",
+                    tag="Geest",
+                    level=Qgis.Critical,
                 )
 
         self.create_study_area_directory(self.working_dir)
@@ -90,6 +100,31 @@ class StudyAreaProcessor:
         # Reproject and align the transformed layer_bbox to a 100m grid and output crs
         self.layer_bbox = self.grid_aligned_bbox(self.layer_bbox)
 
+    def run(self):
+        """
+        Run method for QgsTask. Processes each feature in the input layer.
+        Emits progress signals and handles completion.
+        """
+        QgsMessageLog.logMessage(
+            f"Running Study Area Processor: EPSG:{self.epsg_code}", tag="Geest", level=Qgis.Info
+        )        
+        try:
+            self.process_study_area()
+            self.completion_signal.emit("Processing completed successfully.")
+            return True
+        except Exception as e:
+            QgsMessageLog.logMessage(
+                f"Error during processing: {e}", tag="Geest", level=Qgis.Critical
+            )
+            self.completion_signal.emit(f"Processing failed: {e}")
+            return False
+
+    def finished(self, result: bool):
+        if result:
+            QgsMessageLog.logMessage("Study area creation completed successfully!", tag="Geest", level=Qgis.Info)
+        else:
+            QgsMessageLog.logMessage("Study area creation failed to complete.", tag="Geest", level=Qgis.Critical)
+
     def process_study_area(self) -> None:
         """
         Processes each feature in the input layer, creating bounding boxes and grids.
@@ -118,6 +153,9 @@ class StudyAreaProcessor:
         # Process individual features
         selected_features = self.layer.selectedFeatures()
         features = selected_features if selected_features else self.layer.getFeatures()
+
+        total_features = len(list(features))
+        processed_features = 0
 
         for feature in features:
             geom: QgsGeometry = feature.geometry()
@@ -171,6 +209,11 @@ class StudyAreaProcessor:
                     level=Qgis.Critical,
                 )
 
+            # Update progress
+            processed_features += 1
+            progress = (processed_features / total_features) * 100
+            self.progress_signal.emit(progress)
+
         # Log the count of valid, fixed, and invalid features processed
         QgsMessageLog.logMessage(
             f"Processing completed. Valid features: {valid_feature_count}, Fixed features: {fixed_feature_count}, Invalid features: {invalid_feature_count}",
@@ -180,11 +223,11 @@ class StudyAreaProcessor:
 
         # Add the 'study_area_bboxes' layer to the QGIS map after processing is complete
         self.add_layer_to_map("study_area_bboxes")
+        self.add_layer_to_map("study_area_polygons")
 
         # Create and add the VRT of all generated raster masks if in raster mode
         if self.mode == "raster":
             self.create_raster_vrt()
-
 
     def add_layer_to_map(self, layer_name: str) -> None:
         """
@@ -219,15 +262,14 @@ class StudyAreaProcessor:
         :param normalized_name: Name normalized for file storage.
         :param area_name: Name of the study area.
         """
-       
         # Compute the aligned bounding box based on the transformed geometry
-        # This will do the CRS transform too
         bbox: QgsRectangle = self.grid_aligned_bbox(geom.boundingBox())
 
         # Create a feature for the aligned bounding box
         study_area_feature: QgsFeature = QgsFeature()
         study_area_feature.setGeometry(QgsGeometry.fromRect(bbox))
-        study_area_feature.setAttributes([area_name])        
+        study_area_feature.setAttributes([area_name])
+
         # Always save the study area bounding boxes regardless of mode
         self.save_to_geopackage(
             [study_area_feature],
@@ -235,7 +277,18 @@ class StudyAreaProcessor:
             [QgsField("area_name", QVariant.String)],
             QgsWkbTypes.Polygon,
         )
-        
+
+        # Create a feature for the study area original polygon
+        study_area_feature = QgsFeature()
+        study_area_feature.setGeometry(QgsGeometry.fromRect(self.layer_bbox))
+        study_area_feature.setAttributes(["area_name"])
+
+        self.save_to_geopackage(
+            [study_area_bbox_feature],
+            "study_area_polygons",
+            [QgsField("area_name", QVariant.String)],
+            QgsWkbTypes.Polygon,
+        )        
         # Transform the geometry to the output CRS
         crs_src: QgsCoordinateReferenceSystem = self.layer.crs()
         transform: QgsCoordinateTransform = QgsCoordinateTransform(
@@ -249,7 +302,7 @@ class StudyAreaProcessor:
                 f"Creating vector grid for {normalized_name}.",
                 tag="Geest",
                 level=Qgis.Info,
-            )            
+            )
             self.create_and_save_grid(geom, bbox)
         elif self.mode == "raster":
             QgsMessageLog.logMessage(
@@ -263,7 +316,7 @@ class StudyAreaProcessor:
         self, geom: QgsGeometry, normalized_name: str, area_name: str
     ) -> None:
         """
-        Processes each part of a multipart geometry by exploding the parts and delegating 
+        Processes each part of a multipart geometry by exploding the parts and delegating
         to process_singlepart_geometry, ensuring the part index is included in the output name.
 
         :param geom: Geometry of the multipart feature.
@@ -300,16 +353,35 @@ class StudyAreaProcessor:
         study_area_origin_y = int(self.layer_bbox.yMinimum() // 100) * 100
 
         # Align bbox to the grid based on the study area origin
-        x_min = study_area_origin_x + int((bbox_transformed.xMinimum() - study_area_origin_x) // 100) * 100
-        y_min = study_area_origin_y + int((bbox_transformed.yMinimum() - study_area_origin_y) // 100) * 100
-        x_max = study_area_origin_x + (int((bbox_transformed.xMaximum() - study_area_origin_x) // 100) + 1) * 100
-        y_max = study_area_origin_y + (int((bbox_transformed.yMaximum() - study_area_origin_y) // 100) + 1) * 100
+        x_min = (
+            study_area_origin_x
+            + int((bbox_transformed.xMinimum() - study_area_origin_x) // 100) * 100
+        )
+        y_min = (
+            study_area_origin_y
+            + int((bbox_transformed.yMinimum() - study_area_origin_y) // 100) * 100
+        )
+        x_max = (
+            study_area_origin_x
+            + (int((bbox_transformed.xMaximum() - study_area_origin_x) // 100) + 1)
+            * 100
+        )
+        y_max = (
+            study_area_origin_y
+            + (int((bbox_transformed.yMaximum() - study_area_origin_y) // 100) + 1)
+            * 100
+        )
 
         # Return the aligned bbox in the output CRS
         return QgsRectangle(x_min, y_min, x_max, y_max)
 
-
-    def save_to_geopackage(self, features: List[QgsFeature], layer_name: str, fields: List[QgsField], geometry_type: QgsWkbTypes) -> None:
+    def save_to_geopackage(
+        self,
+        features: List[QgsFeature],
+        layer_name: str,
+        fields: List[QgsField],
+        geometry_type: QgsWkbTypes,
+    ) -> None:
         """
         Save features to GeoPackage. Create or append the layer as necessary.
 
@@ -332,14 +404,24 @@ class StudyAreaProcessor:
         gpkg_layer = QgsVectorLayer(gpkg_layer_path, layer_name, "ogr")
 
         if gpkg_layer.isValid():
-            QgsMessageLog.logMessage(f"Appending to existing layer: {layer_name}", tag="Geest", level=Qgis.Info)
+            QgsMessageLog.logMessage(
+                f"Appending to existing layer: {layer_name}",
+                tag="Geest",
+                level=Qgis.Info,
+            )
             provider = gpkg_layer.dataProvider()
             provider.addFeatures(features)
             gpkg_layer.updateExtents()
         else:
-            QgsMessageLog.logMessage(f"Layer '{layer_name}' is not valid for appending.", tag="Geest", level=Qgis.Critical)
+            QgsMessageLog.logMessage(
+                f"Layer '{layer_name}' is not valid for appending.",
+                tag="Geest",
+                level=Qgis.Critical,
+            )
 
-    def create_layer_if_not_exists(self, layer_name: str, fields: List[QgsField], geometry_type: QgsWkbTypes) -> None:
+    def create_layer_if_not_exists(
+        self, layer_name: str, fields: List[QgsField], geometry_type: QgsWkbTypes
+    ) -> None:
         """
         Create a new layer in the GeoPackage if it doesn't already exist.
 
@@ -353,18 +435,28 @@ class StudyAreaProcessor:
         # Check if the GeoPackage file exists
         if not os.path.exists(self.gpkg_path):
             append = False
-            QgsMessageLog.logMessage(f"GeoPackage does not exist. Creating: {self.gpkg_path}", tag="Geest", level=Qgis.Info)
+            QgsMessageLog.logMessage(
+                f"GeoPackage does not exist. Creating: {self.gpkg_path}",
+                tag="Geest",
+                level=Qgis.Info,
+            )
 
         # If the layer doesn't exist, create it
         if not layer.isValid():
-            QgsMessageLog.logMessage(f"Layer '{layer_name}' does not exist. Creating it.", tag="Geest", level=Qgis.Info)
+            QgsMessageLog.logMessage(
+                f"Layer '{layer_name}' does not exist. Creating it.",
+                tag="Geest",
+                level=Qgis.Info,
+            )
             crs = QgsCoordinateReferenceSystem(f"EPSG:{self.epsg_code}")
             options = QgsVectorFileWriter.SaveVectorOptions()
             options.driverName = "GPKG"
             options.fileEncoding = "UTF-8"
             options.layerName = layer_name
             if append:
-                options.actionOnExistingFile = QgsVectorFileWriter.CreateOrOverwriteLayer
+                options.actionOnExistingFile = (
+                    QgsVectorFileWriter.CreateOrOverwriteLayer
+                )
 
             # Convert list of QgsField objects to QgsFields object
             qgs_fields = QgsFields()
@@ -391,7 +483,9 @@ class StudyAreaProcessor:
         grid_layer_name = "study_area_grid"
         grid_fields = [QgsField("id", QVariant.Int)]
 
-        self.create_layer_if_not_exists(grid_layer_name, grid_fields, QgsWkbTypes.Polygon)
+        self.create_layer_if_not_exists(
+            grid_layer_name, grid_fields, QgsWkbTypes.Polygon
+        )
 
         step = 100  # 100m grid cells
         feature_id = 0
@@ -404,9 +498,13 @@ class StudyAreaProcessor:
         gpkg_layer_path = f"{self.gpkg_path}|layername={grid_layer_name}"
         gpkg_layer = QgsVectorLayer(gpkg_layer_path, grid_layer_name, "ogr")
         if not gpkg_layer.isValid():
-            QgsMessageLog.logMessage(f"Failed to access layer '{grid_layer_name}' in the GeoPackage.", tag="Geest", level=Qgis.Critical)
+            QgsMessageLog.logMessage(
+                f"Failed to access layer '{grid_layer_name}' in the GeoPackage.",
+                tag="Geest",
+                level=Qgis.Critical,
+            )
             return
-        
+
         provider = gpkg_layer.dataProvider()
 
         # Loop through the grid cells
@@ -428,14 +526,16 @@ class StudyAreaProcessor:
         provider.addFeatures(feature_batch)
         gpkg_layer.updateExtents()
 
-    def create_raster_mask(self, geom: QgsGeometry, aligned_box: QgsRectangle, mask_name: str) -> None:
+    def create_raster_mask(
+        self, geom: QgsGeometry, aligned_box: QgsRectangle, mask_name: str
+    ) -> None:
         """
         Creates a 1-bit raster mask for a single geometry.
 
         :param geom: Geometry to be rasterized.
         :param aligned_box: Aligned bounding box for the geometry.
         :param mask_name: Name for the output raster file.
-        """    
+        """
         mask_filepath = os.path.join(self.working_dir, "study_area", f"{mask_name}.tif")
 
         # Create a memory layer to hold the geometry
@@ -445,7 +545,9 @@ class StudyAreaProcessor:
         temp_layer_data_provider = temp_layer.dataProvider()
 
         # Define a field to store the mask value
-        temp_layer_data_provider.addAttributes([QgsField(self.field_name, QVariant.String)])
+        temp_layer_data_provider.addAttributes(
+            [QgsField(self.field_name, QVariant.String)]
+        )
         temp_layer.updateFields()
 
         # Add the geometry to the memory layer
@@ -468,10 +570,10 @@ class StudyAreaProcessor:
             "WIDTH": x_res,
             "HEIGHT": y_res,
             "EXTENT": f"{aligned_box.xMinimum()},{aligned_box.xMaximum()},"
-                    f"{aligned_box.yMinimum()},{aligned_box.yMaximum()}",  # Extent of the aligned bbox
+            f"{aligned_box.yMinimum()},{aligned_box.yMaximum()}",  # Extent of the aligned bbox
             "NODATA": 0,
             "OPTIONS": "",
-            "DATA_TYPE": 0, # byte
+            "DATA_TYPE": 0,  # byte
             "INIT": None,
             "INVERT": False,
             "EXTRA": "-co NBITS=1",
@@ -479,8 +581,9 @@ class StudyAreaProcessor:
         }
         # Run the rasterize algorithm
         processing.run("gdal:rasterize", params)
-        QgsMessageLog.logMessage(f"Created raster mask: {mask_filepath}", tag="Geest", level=Qgis.Info)
-
+        QgsMessageLog.logMessage(
+            f"Created raster mask: {mask_filepath}", tag="Geest", level=Qgis.Info
+        )
 
     def calculate_utm_zone(self, bbox: QgsRectangle) -> int:
         """
@@ -492,7 +595,9 @@ class StudyAreaProcessor:
         """
         # Get the source CRS (from the input layer)
         crs_src: QgsCoordinateReferenceSystem = self.layer.crs()
-        crs_wgs84: QgsCoordinateReferenceSystem = QgsCoordinateReferenceSystem("EPSG:4326")
+        crs_wgs84: QgsCoordinateReferenceSystem = QgsCoordinateReferenceSystem(
+            "EPSG:4326"
+        )
 
         # Create the transform object
         transform: QgsCoordinateTransform = QgsCoordinateTransform(
@@ -517,7 +622,6 @@ class StudyAreaProcessor:
 
         return epsg_code
 
-
     def create_study_area_directory(self, working_dir: str) -> None:
         """
         Creates the 'study_area' directory if it doesn't already exist.
@@ -528,55 +632,70 @@ class StudyAreaProcessor:
         if not os.path.exists(study_area_dir):
             try:
                 os.makedirs(study_area_dir)
-                QgsMessageLog.logMessage(f"Created study area directory: {study_area_dir}", tag="Geest", level=Qgis.Info)
+                QgsMessageLog.logMessage(
+                    f"Created study area directory: {study_area_dir}",
+                    tag="Geest",
+                    level=Qgis.Info,
+                )
             except Exception as e:
-                QgsMessageLog.logMessage(f"Error creating directory: {e}", tag="Geest", level=Qgis.Critical)
-
+                QgsMessageLog.logMessage(
+                    f"Error creating directory: {e}", tag="Geest", level=Qgis.Critical
+                )
 
     def create_raster_vrt(self, output_vrt_name: str = "combined_mask.vrt") -> None:
-            """
-            Creates a VRT file from all generated raster masks and adds it to the QGIS map.
+        """
+        Creates a VRT file from all generated raster masks and adds it to the QGIS map.
 
-            :param output_vrt_name: The name of the VRT file to create.
-            """
+        :param output_vrt_name: The name of the VRT file to create.
+        """
+        QgsMessageLog.logMessage(
+            f"Creating VRT of masks '{output_vrt_name}' layer to the map.",
+            tag="Geest",
+            level=Qgis.Info,
+        )
+        # Directory containing raster masks
+        raster_dir = os.path.join(self.working_dir, "study_area")
+        raster_files = glob.glob(os.path.join(raster_dir, "*.tif"))
+
+        if not raster_files:
             QgsMessageLog.logMessage(
-                f"Creating VRT of masks '{output_vrt_name}' layer to the map.",
+                "No raster masks found to combine into VRT.",
                 tag="Geest",
-                level=Qgis.Info,
-            )              
-            # Directory containing raster masks
-            raster_dir = os.path.join(self.working_dir, "study_area")
-            raster_files = glob.glob(os.path.join(raster_dir, "*.tif"))
+                level=Qgis.Warning,
+            )
+            return
 
-            if not raster_files:
-                QgsMessageLog.logMessage("No raster masks found to combine into VRT.", tag="Geest", level=Qgis.Warning)
-                return
+        vrt_filepath = os.path.join(raster_dir, output_vrt_name)
 
-            vrt_filepath = os.path.join(raster_dir, output_vrt_name)
+        # Define the VRT parameters
+        params = {
+            "INPUT": raster_files,
+            "RESOLUTION": 0,  # Use highest resolution among input files
+            "SEPARATE": False,  # Combine all input rasters as a single band
+            "OUTPUT": vrt_filepath,
+            "PROJ_DIFFERENCE": False,
+            "ADD_ALPHA": False,
+            "ASSIGN_CRS": None,
+            "RESAMPLING": 0,
+            "SRC_NODATA": "0",
+            "EXTRA": "",
+        }
 
-            # Define the VRT parameters
-            params = {
-                "INPUT": raster_files,
-                "RESOLUTION": 0,  # Use highest resolution among input files
-                "SEPARATE": False,  # Combine all input rasters as a single band
-                "OUTPUT": vrt_filepath,
-                'PROJ_DIFFERENCE':False,
-                'ADD_ALPHA':False,
-                'ASSIGN_CRS':None,
-                'RESAMPLING':0,
-                'SRC_NODATA':'0',
-                'EXTRA':''
-            }
+        # Run the gdal:buildvrt processing algorithm to create the VRT
+        processing.run("gdal:buildvirtualraster", params)
+        QgsMessageLog.logMessage(
+            f"Created VRT: {vrt_filepath}", tag="Geest", level=Qgis.Info
+        )
 
-            # Run the gdal:buildvrt processing algorithm to create the VRT
-            processing.run("gdal:buildvirtualraster", params)
-            QgsMessageLog.logMessage(f"Created VRT: {vrt_filepath}", tag="Geest", level=Qgis.Info)
+        # Add the VRT to the QGIS map
+        vrt_layer = QgsRasterLayer(vrt_filepath, "Combined Mask VRT")
 
-            # Add the VRT to the QGIS map
-            vrt_layer = QgsRasterLayer(vrt_filepath, "Combined Mask VRT")
-
-            if vrt_layer.isValid():
-                QgsProject.instance().addMapLayer(vrt_layer)
-                QgsMessageLog.logMessage("Added VRT layer to the map.", tag="Geest", level=Qgis.Info)
-            else:
-                QgsMessageLog.logMessage("Failed to add VRT layer to the map.", tag="Geest", level=Qgis.Critical)
+        if vrt_layer.isValid():
+            QgsProject.instance().addMapLayer(vrt_layer)
+            QgsMessageLog.logMessage(
+                "Added VRT layer to the map.", tag="Geest", level=Qgis.Info
+            )
+        else:
+            QgsMessageLog.logMessage(
+                "Failed to add VRT layer to the map.", tag="Geest", level=Qgis.Critical
+            )

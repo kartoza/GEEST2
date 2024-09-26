@@ -14,6 +14,7 @@ from PyQt5.QtWidgets import (
 )
 from qgis.gui import QgsMapLayerComboBox, QgsFieldComboBox
 from qgis.core import (
+    QgsApplication,
     QgsMapLayerProxyModel,
     QgsFieldProxyModel,
     QgsWkbTypes,
@@ -159,8 +160,13 @@ class SetupPanel(QWidget):
         # Create the processor instance and process the features
         try:
             processor = StudyAreaProcessor(
-                layer=layer, field_name=field_name, working_dir=self.working_dir
+                layer=layer, 
+                field_name=field_name, 
+                working_dir=self.working_dir,
+                mode="raster"
             )
+            # Not running as it should be
+            #QgsApplication.taskManager().addTask(processor)
             processor.process_study_area()
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Error processing study area: {e}")
