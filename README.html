@@ -441,6 +441,7 @@ document.write(`
 </li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#creating-a-release">Creating a release</a></li>
 </ul>
 </li>
 </ul>
@@ -950,6 +951,20 @@ Recommending to use <a class="reference external" href="https://virtualenvwrappe
 </section>
 </section>
 </section>
+<section id="creating-a-release">
+<h2>Creating a release<a class="headerlink" href="#creating-a-release" title="Permalink to this heading">#</a></h2>
+<p>Edit <a class="reference download internal" download="" href="_downloads/06b2d3b23dce96e1619d2b53d6c947ec/config.json"><span class="xref download myst">config.json</span></a> and set the version number there then push that to main. This
+will automatically update the metadata.txt during the release process.</p>
+<p>Go to <a class="github reference external" href="https://github.com/kartoza/GEEST2/releases/new">kartoza/GEEST2</a></p>
+<p>Create a tag following semver e.g. v0.1.4</p>
+<p><img alt="Create a tag" src="_images/tagging.png" /></p>
+<p>Fill in the release (use the autogenerate release notes button)</p>
+<p><img alt="Create a tag" src="docs/images/release.png" /></p>
+<p>Now we have a new release:</p>
+<p><img alt="New Release" src="_images/new-release.png" /></p>
+<p>In <a class="github reference external" href="https://github.com/kartoza/GEEST2/actions">kartoza/GEEST2</a> we will see the release building:</p>
+<p><img alt="Release Buildng" src="_images/new-release.png" /></p>
+</section>
 <div class="toctree-wrapper compound">
 </div>
 <div class="toctree-wrapper compound">
@@ -1043,6 +1058,7 @@ Recommending to use <a class="reference external" href="https://virtualenvwrappe
 </li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#creating-a-release">Creating a release</a></li>
 </ul>
 </li>
 </ul>
