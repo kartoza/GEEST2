@@ -30,21 +30,8 @@ class RasterPolylineGridScore:
         # Initialize GridAligner with grid size
         self.grid_aligner = GridAligner(grid_size=100)
 
-    def raster_polyline_grid_score(self):
-        """
-        Generates a raster based on the number of input points within each grid cell.
-        :param country_boundary: Layer defining the country boundary to clip the grid.
-        :param cellsize: The size of each grid cell.
-        :param crs: The CRS in which the grid and raster will be projected.
-        :param input_polylines: Layer of point features to count within each grid cell.
-        """
-
-        output_dir = os.path.dirname(self.output_path)
-
-        # Define output directory and ensure it's created
-        os.makedirs(output_dir, exist_ok=True)
-
-        # Load grid layer from the Geopackage
+    def load_layers(self):
+        """Load the grid and area layers from the Geopackage."""
         geopackage_path = os.path.join(
             self.working_dir, "study_area", "study_area.gpkg"
         )
@@ -54,25 +41,23 @@ class RasterPolylineGridScore:
         grid_layer = QgsVectorLayer(
             f"{geopackage_path}|layername=study_area_grid", "merged_grid", "ogr"
         )
+        # area_layer = QgsVectorLayer(
+        #    f"{geopackage_path}|layername=study_area_polygons",
+        #    "study_area_polygons",
+        #    "ogr",
+        # )
 
-        area_layer = QgsVectorLayer(
-            f"{geopackage_path}|layername=study_area_polygons",
-            "study_area_polygons",
-            "ogr",
-        )
+        return grid_layer
 
-        geometries = [feature.geometry() for feature in area_layer.getFeatures()]
-
-        # Combine all geometries into one using unaryUnion
-        area_geometry = QgsGeometry.unaryUnion(geometries)
-
-        # grid_geometry = grid_layer.getGeometry()
-
+    def align_grid_bbox(self, area_geometry: QgsGeometry, grid_layer: QgsVectorLayer):
+        """Align the bounding box of the grid with the country boundary."""
         aligned_bbox = self.grid_aligner.align_bbox(
-            area_geometry.boundingBox(), area_layer.extent()
+            area_geometry.boundingBox(), grid_layer.extent()
         )
+        return aligned_bbox
 
-        # Extract polylines by location
+    def extract_by_location(self, grid_layer: QgsVectorLayer):
+        """Extract the polylines that intersect with grid cells."""
         grid_output = processing.run(
             "native:extractbylocation",
             {
@@ -83,17 +68,10 @@ class RasterPolylineGridScore:
             },
             feedback=QgsProcessingFeedback(),
         )["OUTPUT"]
+        return grid_output
 
-        grid_layer = grid_output
-
-        # Add score field
-        provider = grid_layer.dataProvider()
-        field_name = "line_score"
-        if not grid_layer.fields().indexFromName(field_name) >= 0:
-            provider.addAttributes([QgsField(field_name, QVariant.Int)])
-            grid_layer.updateFields()
-
-        # Create spatial index for the input points
+    def reproject_polylines(self):
+        """Reproject the input polylines if needed."""
         if self.input_polylines.crs() != self.crs:
             self.input_polylines = processing.run(
                 "native:reprojectlayer",
@@ -104,34 +82,36 @@ class RasterPolylineGridScore:
                 },
                 feedback=QgsProcessingFeedback(),
             )["OUTPUT"]
-        polyline_index = QgsSpatialIndex(self.input_polylines.getFeatures())
 
-        # Count points within each grid cell and assign a score
+    def calculate_grid_scores(self, grid_layer: QgsVectorLayer):
+        """Calculate the score for each grid cell based on intersecting polylines."""
+        provider = grid_layer.dataProvider()
+        field_name = "line_score"
+
+        # Add score field if it doesn't exist
+        if not grid_layer.fields().indexFromName(field_name) >= 0:
+            provider.addAttributes([QgsField(field_name, QVariant.Int)])
+            grid_layer.updateFields()
+
+        polyline_index = QgsSpatialIndex(self.input_polylines.getFeatures())
         reclass_vals = {}
+
         for grid_feat in grid_layer.getFeatures():
             grid_geom = grid_feat.geometry()
-            # Get intersecting points
             intersecting_ids = polyline_index.intersects(grid_geom.boundingBox())
 
-            # Initialize a set to store unique intersecting line feature IDs
             unique_intersections = set()
-
-            # Check each potentially intersecting line feature
             for line_id in intersecting_ids:
                 line_feat = self.input_polylines.getFeature(line_id)
                 line_geom = line_feat.geometry()
-
-                # Perform a detailed intersection check
-                if grid_feat.geometry().intersects(line_geom):
+                if grid_geom.intersects(line_geom):
                     unique_intersections.add(line_id)
 
             num_polylines = len(unique_intersections)
-
-            # Reclassification logic: assign score based on the number of points
             reclass_val = 5 if num_polylines >= 2 else 3 if num_polylines == 1 else 0
             reclass_vals[grid_feat.id()] = reclass_val
 
-        # Apply the score values to the grid
+        # Apply score values to the grid
         grid_layer.startEditing()
         for grid_feat in grid_layer.getFeatures():
             grid_layer.changeAttributeValue(
@@ -141,25 +121,18 @@ class RasterPolylineGridScore:
             )
         grid_layer.commitChanges()
 
-        # Merge the output vector layers
-        merge = processing.run(
-            "native:mergevectorlayers",
-            {"LAYERS": [grid_layer], "CRS": self.crs, "OUTPUT": "TEMPORARY_OUTPUT"},
-            feedback=QgsProcessingFeedback(),
-        )["OUTPUT"]
-
+    def rasterize_grid(self, grid_layer: QgsVectorLayer, aligned_bbox: QgsGeometry):
+        """Rasterize the grid layer to create a raster output."""
         xmin, xmax, ymin, ymax = (
             aligned_bbox.xMinimum(),
             aligned_bbox.xMaximum(),
             aligned_bbox.yMinimum(),
             aligned_bbox.yMaximum(),
-        )  # Extent of the aligned bbox
+        )
 
-        # Rasterize the clipped grid layer to generate the raster
-        # output_file = os.path.join(output_dir, "rasterized_grid.tif")
         rasterize_params = {
-            "INPUT": merge,
-            "FIELD": field_name,
+            "INPUT": grid_layer,
+            "FIELD": "line_score",
             "BURN": 0,
             "USE_Z": False,
             "UNITS": 1,
@@ -172,14 +145,16 @@ class RasterPolylineGridScore:
             "OUTPUT": "TEMPORARY_OUTPUT",
         }
 
-        output_file = processing.run(
+        return processing.run(
             "gdal:rasterize", rasterize_params, feedback=QgsProcessingFeedback()
         )["OUTPUT"]
 
-        processing.run(
+    def clip_raster(self, raster_output):
+        """Clip the raster to the country boundary."""
+        return processing.run(
             "gdal:cliprasterbymasklayer",
             {
-                "INPUT": output_file,
+                "INPUT": raster_output,
                 "MASK": self.country_boundary,
                 "NODATA": -9999,
                 "CROP_TO_CUTLINE": True,
@@ -187,3 +162,20 @@ class RasterPolylineGridScore:
             },
             feedback=QgsProcessingFeedback(),
         )
+
+    def raster_polyline_grid_score(self):
+        """Main function to orchestrate the entire raster generation process."""
+        grid_layer = self.load_layers()
+
+        geometries = [feature.geometry() for feature in grid_layer.getFeatures()]
+        area_geometry = QgsGeometry.unaryUnion(geometries)
+
+        aligned_bbox = self.align_grid_bbox(area_geometry, grid_layer)
+
+        self.reproject_polylines()
+
+        grid_layer = self.extract_by_location(grid_layer)
+        self.calculate_grid_scores(grid_layer)
+
+        raster_output = self.rasterize_grid(grid_layer, aligned_bbox)
+        self.clip_raster(raster_output)

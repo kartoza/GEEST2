@@ -30,22 +30,8 @@ class RasterPolygonGridScore:
         # Initialize GridAligner with grid size
         self.grid_aligner = GridAligner(grid_size=100)
 
-    def raster_polygon_grid_score(self):
-        """
-        Generates a raster based on the number of input points within each grid cell.
-        :param country_boundary: Layer defining the country boundary to clip the grid.
-        :param cellsize: The size of each grid cell.
-        :param output_path: Path to save the output raster.
-        :param crs: The CRS in which the grid and raster will be projected.
-        :param input_polygons: Layer of point features to count within each grid cell.
-        """
-
-        output_dir = os.path.dirname(self.output_path)
-
-        # Define output directory and ensure it's created
-        os.makedirs(output_dir, exist_ok=True)
-
-        # Load grid layer from the Geopackage
+    def load_layers(self):
+        """Load the grid and area layers from the Geopackage."""
         geopackage_path = os.path.join(
             self.working_dir, "study_area", "study_area.gpkg"
         )
@@ -55,26 +41,23 @@ class RasterPolygonGridScore:
         grid_layer = QgsVectorLayer(
             f"{geopackage_path}|layername=study_area_grid", "merged_grid", "ogr"
         )
+        # area_layer = QgsVectorLayer(
+        #    f"{geopackage_path}|layername=study_area_polygons",
+        #    "study_area_polygons",
+        #    "ogr",
+        # )
 
-        area_layer = QgsVectorLayer(
-            f"{geopackage_path}|layername=study_area_polygons",
-            "study_area_polygons",
-            "ogr",
+        return grid_layer
+
+    def align_grid_bbox(self, area_geometry: QgsGeometry, grid_layer: QgsVectorLayer):
+        """Align the bounding box of the grid with the country boundary."""
+        return self.grid_aligner.align_bbox(
+            area_geometry.boundingBox(), grid_layer.extent()
         )
 
-        geometries = [feature.geometry() for feature in area_layer.getFeatures()]
-
-        # Combine all geometries into one using unaryUnion
-        area_geometry = QgsGeometry.unaryUnion(geometries)
-
-        # grid_geometry = grid_layer.getGeometry()
-
-        aligned_bbox = self.grid_aligner.align_bbox(
-            area_geometry.boundingBox(), area_layer.extent()
-        )
-
-        # Extract polylines by location
-        grid_output = processing.run(
+    def extract_by_location(self, grid_layer: QgsVectorLayer):
+        """Extract the polygons that intersect with grid cells."""
+        return processing.run(
             "native:extractbylocation",
             {
                 "INPUT": grid_layer,
@@ -85,17 +68,8 @@ class RasterPolygonGridScore:
             feedback=QgsProcessingFeedback(),
         )["OUTPUT"]
 
-        grid_layer = grid_output
-
-        # Add score field
-        provider = grid_layer.dataProvider()
-        field_name = "poly_score"
-        if not grid_layer.fields().indexFromName(field_name) >= 0:
-            provider.addAttributes([QgsField(field_name, QVariant.Int)])
-            grid_layer.updateFields()
-
-        # Create spatial index for the input points
-        # Reproject the country layer if necessary
+    def reproject_polygons(self):
+        """Reproject the input polygons if needed."""
         if self.input_polygons.crs() != self.crs:
             self.input_polygons = processing.run(
                 "native:reprojectlayer",
@@ -106,26 +80,32 @@ class RasterPolygonGridScore:
                 },
                 feedback=QgsProcessingFeedback(),
             )["OUTPUT"]
-        polygon_index = QgsSpatialIndex(self.input_polygons.getFeatures())
 
-        # Count points within each grid cell and assign a score
+    def calculate_grid_scores(self, grid_layer: QgsVectorLayer):
+        """Calculate the score for each grid cell based on intersecting polygons."""
+        provider = grid_layer.dataProvider()
+        field_name = "poly_score"
+
+        # Add score field if it doesn't exist
+        if not grid_layer.fields().indexFromName(field_name) >= 0:
+            provider.addAttributes([QgsField(field_name, QVariant.Int)])
+            grid_layer.updateFields()
+
+        polygon_index = QgsSpatialIndex(self.input_polygons.getFeatures())
         reclass_vals = {}
+
         for grid_feat in grid_layer.getFeatures():
             grid_geom = grid_feat.geometry()
-            # Get intersecting points
             intersecting_ids = polygon_index.intersects(grid_geom.boundingBox())
 
-            # Initialize a set to store unique intersecting line feature IDs
             unique_intersections = set()
-
-            # Initialize variable to keep track of the maximum perimeter
             max_perimeter = 0
 
             for poly_id in intersecting_ids:
                 poly_feat = self.input_polygons.getFeature(poly_id)
                 poly_geom = poly_feat.geometry()
 
-                if grid_feat.geometry().intersects(poly_geom):
+                if grid_geom.intersects(poly_geom):
                     unique_intersections.add(poly_id)
                     perimeter = poly_geom.length()
 
@@ -134,22 +114,22 @@ class RasterPolygonGridScore:
                         max_perimeter = perimeter
 
             # Assign reclassification value based on the maximum perimeter
-            if max_perimeter > 1000:  # Very large blocks
-                reclass_val = 1
-            elif 751 <= max_perimeter <= 1000:  # Large blocks
-                reclass_val = 2
-            elif 501 <= max_perimeter <= 750:  # Moderate blocks
-                reclass_val = 3
-            elif 251 <= max_perimeter <= 500:  # Small blocks
-                reclass_val = 4
-            elif 0 < max_perimeter <= 250:  # Very small blocks
-                reclass_val = 5
+            if max_perimeter > 1000:
+                reclass_val = 1  # Very large blocks
+            elif 751 <= max_perimeter <= 1000:
+                reclass_val = 2  # Large blocks
+            elif 501 <= max_perimeter <= 750:
+                reclass_val = 3  # Moderate blocks
+            elif 251 <= max_perimeter <= 500:
+                reclass_val = 4  # Small blocks
+            elif 0 < max_perimeter <= 250:
+                reclass_val = 5  # Very small blocks
             else:
                 reclass_val = 0  # No intersection
 
             reclass_vals[grid_feat.id()] = reclass_val
 
-        # Step 5: Apply the score values to the grid
+        # Apply score values to the grid
         grid_layer.startEditing()
         for grid_feat in grid_layer.getFeatures():
             grid_layer.changeAttributeValue(
@@ -159,7 +139,11 @@ class RasterPolygonGridScore:
             )
         grid_layer.commitChanges()
 
-        merged_output_vector = os.path.join(output_dir, "merged_grid_vector.shp")
+    def merge_and_rasterize(
+        self, grid_layer: QgsVectorLayer, aligned_bbox: QgsGeometry
+    ):
+        """Merge vector layers and rasterize the result."""
+        raster_output_path = "TEMPORARY_OUTPUT"
 
         # Merge the output vector layers
         merge = processing.run(
@@ -178,7 +162,7 @@ class RasterPolygonGridScore:
         # Rasterize the clipped grid layer to generate the raster
         rasterize_params = {
             "INPUT": merge,
-            "FIELD": field_name,
+            "FIELD": "poly_score",
             "BURN": 0,
             "USE_Z": False,
             "UNITS": 1,
@@ -188,17 +172,19 @@ class RasterPolygonGridScore:
             "NODATA": None,
             "OPTIONS": "",
             "DATA_TYPE": 5,  # Use Int32 for scores
-            "OUTPUT": "TEMPORARY_OUTPUT",
+            "OUTPUT": raster_output_path,
         }
 
-        output_file = processing.run(
+        return processing.run(
             "gdal:rasterize", rasterize_params, feedback=QgsProcessingFeedback()
         )["OUTPUT"]
 
-        processing.run(
+    def clip_raster(self, raster_output):
+        """Clip the raster to the country boundary."""
+        return processing.run(
             "gdal:cliprasterbymasklayer",
             {
-                "INPUT": output_file,
+                "INPUT": raster_output,
                 "MASK": self.country_boundary,
                 "NODATA": -9999,
                 "CROP_TO_CUTLINE": True,
@@ -206,3 +192,20 @@ class RasterPolygonGridScore:
             },
             feedback=QgsProcessingFeedback(),
         )
+
+    def raster_polygon_grid_score(self):
+        """Main function to orchestrate the entire raster generation process."""
+        grid_layer = self.load_layers()
+
+        geometries = [feature.geometry() for feature in grid_layer.getFeatures()]
+        area_geometry = QgsGeometry.unaryUnion(geometries)
+
+        aligned_bbox = self.align_grid_bbox(area_geometry, grid_layer)
+
+        self.reproject_polygons()
+
+        grid_layer = self.extract_by_location(grid_layer)
+        self.calculate_grid_scores(grid_layer)
+
+        raster_output = self.merge_and_rasterize(grid_layer, aligned_bbox)
+        self.clip_raster(raster_output)
