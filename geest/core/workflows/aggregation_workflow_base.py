@@ -57,6 +57,11 @@ class AggregationWorkflowBase(WorkflowBase):
             weight = layer.get(self.weight_key, 1.0)
             if weight == "" and len(self.layers) == 1:
                 weight = 1.0
+            # Ensure the weight is numeric, cast to float if necessary
+            try:
+                weight = float(weight)
+            except (ValueError, TypeError):
+                weight = 1.0  # Default fallback to 1.0 if weight is invalid
             weights.append(weight)
         return weights
 
@@ -108,6 +113,7 @@ class AggregationWorkflowBase(WorkflowBase):
 
         # Create QgsRasterCalculatorEntries for each raster layer
         entries = []
+        ref_names = []
         for i, raster_layer in enumerate(raster_layers):
             QgsMessageLog.logMessage(
                 f"Adding raster layer {i+1} to the raster calculator. {raster_layer.source()}",
@@ -115,10 +121,13 @@ class AggregationWorkflowBase(WorkflowBase):
                 level=Qgis.Info,
             )
             entry = QgsRasterCalculatorEntry()
-            entry.ref = f"layer_{i+1}@1"  # layer_1@1, layer_2@1, etc.
+            ref_name = os.path.basename(raster_layer.source()).split(".")[0]
+            entry.ref = f"{ref_name}_{i+1}@1"  # Reference the first band
+            # entry.ref = f"layer_{i+1}@1"  # layer_1@1, layer_2@1, etc.
             entry.raster = raster_layer
             entry.bandNumber = 1
             entries.append(entry)
+            ref_names.append(f"{ref_name}_{i+1}")
 
         # Assign default weights (you can modify this as needed)
         weights = self.get_weights()
@@ -131,11 +140,11 @@ class AggregationWorkflowBase(WorkflowBase):
 
         # Build the calculation expression for weighted average
         expression = " + ".join(
-            [f"({weights[i]} * layer_{i+1}@1)" for i in range(layer_count)]
+            [f"({weights[i]} * {ref_names[i]}@1)" for i in range(layer_count)]
         )
 
         # Wrap the weighted sum and divide by the sum of weights
-        expression = f"({expression}) / {sum_weights}"
+        expression = f"({expression}) / {layer_count}"
 
         aggregation_output = self.output_path("tif")
         QgsMessageLog.logMessage(
@@ -176,7 +185,8 @@ class AggregationWorkflowBase(WorkflowBase):
         converter.convert_to_8bit(aggregation_output, aggregation_output_8bit)
         if os.path.exists(aggregation_output_8bit):
             # TODO We should check if developer mode is set and keep the 32-bit raster if it is
-            os.remove(aggregation_output)
+            # os.remove(aggregation_output)
+            pass
 
         QgsMessageLog.logMessage(
             "Raster aggregation completed successfully.",
@@ -254,10 +264,11 @@ class AggregationWorkflowBase(WorkflowBase):
 
         for layer in self.layers:
             path = layer.get(self.raster_path_key, "")
-            raster_files.append(path)
-            QgsMessageLog.logMessage(
-                f"Adding raster: {path}", tag="Geest", level=Qgis.Info
-            )
+            if path:
+                raster_files.append(path)
+                QgsMessageLog.logMessage(
+                    f"Adding raster: {path}", tag="Geest", level=Qgis.Info
+                )
         QgsMessageLog.logMessage(
             f"Total raster files found: {len(raster_files)}",
             tag="Geest",

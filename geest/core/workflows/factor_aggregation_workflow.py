@@ -45,8 +45,6 @@ class FactorAggregationWorkflow(AggregationWorkflowBase):
         """
         directory = os.path.join(
             self.workflow_directory,
-            self.aggregation_attributes.get("Dimension ID").lower().replace(" ", "_"),
-            self.aggregation_attributes.get("Factor ID").lower().replace(" ", "_"),
         )
         # Create the directory if it doesn't exist
         if not os.path.exists(directory):
