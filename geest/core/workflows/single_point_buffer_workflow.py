@@ -35,27 +35,27 @@ class SinglePointBufferWorkflow(WorkflowBase):
         )  # ⭐️ Item is a reference - whatever you change in this item will directly update the tree
         self.workflow_name = "Use Single Buffer Point"
 
-        layer_source = self.attributes.get("Single Buffer Point Layer Shapefile", None)
+        layer_path = self.attributes.get("Single Buffer Point Layer Shapefile", None)
         provider_type = "ogr"
-        if not layer_source:
-            layer_source = self.attributes.get("Single Buffer Point Layer Source", None)
+        if not layer_path:
+            layer_path = self.attributes.get("Single Buffer Point Layer Source", None)
             provider_type = self.attributes.get(
                 "Single Buffer Point Layer Provider Type", "ogr"
             )
-            if not layer_source:
+            if not layer_path:
                 QgsMessageLog.logMessage(
                     "Single Buffer Point Layer Shapefile not found",
                     tag="Geest",
                     level=Qgis.Critical,
                 )
                 return False
-        self.features_layer = QgsVectorLayer(layer_source, "points", provider_type)
+        self.features_layer = QgsVectorLayer(layer_path, "points", provider_type)
         if not self.features_layer.isValid():
             QgsMessageLog.logMessage(
                 "Single Buffer Point Layer not valid", tag="Geest", level=Qgis.Critical
             )
             QgsMessageLog.logMessage(
-                f"Layer Source: {layer_source}", tag="Geest", level=Qgis.Critical
+                f"Layer Source: {layer_path}", tag="Geest", level=Qgis.Critical
             )
             return False
 
