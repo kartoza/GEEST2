@@ -42,13 +42,13 @@ class SinglePointBufferWorkflow(WorkflowBase):
             provider_type = self.attributes.get(
                 "Single Buffer Point Layer Provider Type", "ogr"
             )
-        if not layer_source:
-            QgsMessageLog.logMessage(
-                "Single Buffer Point Layer Shapefile not found",
-                tag="Geest",
-                level=Qgis.Critical,
-            )
-            return False
+            if not layer_source:
+                QgsMessageLog.logMessage(
+                    "Single Buffer Point Layer Shapefile not found",
+                    tag="Geest",
+                    level=Qgis.Critical,
+                )
+                return False
         self.features_layer = QgsVectorLayer(layer_source, "points", provider_type)
         if not self.features_layer.isValid():
             QgsMessageLog.logMessage(
