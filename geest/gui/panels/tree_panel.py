@@ -24,6 +24,7 @@ from qgis.PyQt.QtWidgets import (
     QTableWidget,
     QTableWidgetItem,
     QPushButton,
+    QToolButton,
 )
 from qgis.core import (
     QgsMessageLog,
@@ -135,9 +136,42 @@ class TreePanel(QWidget):
             self.export_json_button.setToolTip("Export JSON Model File")
             self.export_json_button.clicked.connect(self.export_json_to_file)
 
-        self.prepare_analysis_button = QPushButton("▶️")
+        # Prepare Analysis button
+        self.prepare_analysis_button = QToolButton()
+        # Connect the button's right-click (or long-click) to show the menu
+        self.prepare_analysis_button.setText("▶️")  # Set button text
+        self.prepare_analysis_button.setPopupMode(
+            QToolButton.MenuButtonPopup
+        )  # Enable dropdown arrow
+        self.prepare_analysis_button.setToolTip("Select and Run Workflow Scenario")
+
+        # Create the dropdown menu
+        menu = QMenu(self.prepare_analysis_button)
+
+        # Define workflow scenarios and add them as actions
+        scenarios = [
+            "Run All",
+            "Run All Incomplete",
+            "Run Selected",
+            "Run Selected and All Below It",
+            "Run Selected and All Incomplete Below It",
+        ]
+
+        for scenario in scenarios:
+            action = QAction(scenario, self)
+            action.triggered.connect(
+                lambda checked, s=scenario: self.prepare_analysis_pressed
+            )
+            menu.addAction(action)
+
+        # Set the menu to the tool button
+        self.prepare_analysis_button.setMenu(menu)
+
         self.prepare_analysis_button.clicked.connect(self.prepare_analysis_pressed)
+        # Add the combo box and button to the layout
+        button_bar = QHBoxLayout()
         button_bar.addWidget(self.prepare_analysis_button)
+
         self.project_button = QPushButton("Project")
         self.project_button.clicked.connect(self.switch_to_previous_tab)
         button_bar.addWidget(self.project_button)
@@ -920,3 +954,26 @@ class TreePanel(QWidget):
             self.queue_manager.start_processing_in_foreground()
         else:
             self.queue_manager.start_processing()
+
+    def show_scenario_menu(self, position: QPoint):
+        # Create the menu and add the scenarios as actions
+        menu = QMenu()
+
+        # Define scenarios as menu actions
+        scenarios = [
+            "Run All",
+            "Run All Incomplete",
+            "Run Selected",
+            "Run Selected and All Below It",
+            "Run Selected and All Incomplete Below It",
+        ]
+
+        # Add each scenario as an action in the menu
+        for scenario in scenarios:
+            action = menu.addAction(scenario)
+            action.triggered.connect(
+                lambda checked, s=scenario: self.execute_scenario(s)
+            )
+
+        # Show the menu below the button
+        menu.exec_(self.prepare_analysis_button.mapToGlobal(position))
