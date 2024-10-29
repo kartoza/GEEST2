@@ -191,7 +191,6 @@ class WorkflowBase(ABC):
             )
 
         self.attributes["execution_start_time"] = datetime.datetime.now().isoformat()
-
         QgsMessageLog.logMessage("Processing Started", tag="Geest", level=Qgis.Info)
 
         #
@@ -204,6 +203,27 @@ class WorkflowBase(ABC):
         #
         # END TODO
         #
+
+        # Check if a result file already exists and reuse it if the workflow has been run before
+        raster_output = self.attributes.get("result_file", "")
+        if raster_output and os.path.exists(raster_output):
+            raster_layer = QgsRasterLayer(raster_output, "Existing Result Raster")
+            if raster_layer.isValid():
+                QgsMessageLog.logMessage(
+                    f"Using existing raster result file for {self.workflow_name}: {raster_output}",
+                    tag="Geest",
+                    level=Qgis.Info,
+                )
+                self.attributes["result"] = (
+                    f"{self.workflow_name} Workflow Completed (Existing)"
+                )
+                return True
+            else:
+                QgsMessageLog.logMessage(
+                    f"Invalid or missing raster at {raster_output}. Proceeding with workflow processing.",
+                    tag="Geest",
+                    level=Qgis.Warning,
+                )
 
         feedback = QgsProcessingFeedback()
         output_rasters = []
