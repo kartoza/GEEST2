@@ -720,24 +720,11 @@ class TreePanel(QWidget):
     def show_layer_properties(self, item):
         """Open a dialog showing layer properties and update the tree upon changes."""
         editing = self.edit_mode and self.edit_toggle.isChecked()
-        # Get the current layer name and layer data from the item
-        layer_name = item.data(0)  # Column 0: layer name
-        layer_data = item.data(3)  # Column 3: layer data (stored as a dict)
-
         # Create and show the LayerDetailDialog
-        dialog = IndicatorDetailDialog(
-            layer_name, layer_data, item, editing=editing, parent=self
-        )
+        dialog = IndicatorDetailDialog(item, editing=editing, parent=self)
 
         # Connect the dialog's dataUpdated signal to handle data updates
-        def update_layer_data(updated_data):
-            # Update the layer data in the item (column 4)
-            item.setData(3, updated_data)
-
-            # Check if the layer name has changed, and if so, update it in column 0
-            if updated_data.get("name", layer_name) != layer_name:
-                item.setData(0, updated_data.get("name", layer_name))
-
+        def update_layer_data():
             # Save the JSON data to the working directory
             self.save_json_to_working_directory()
 
@@ -795,17 +782,18 @@ class TreePanel(QWidget):
             The task directly modifies the item's properties to update the tree.
         """
         task = None
+        cell_size_m = 1000
         if role == item.role and role == "indicator":
-            task = self.queue_manager.add_workflow(item)
+            task = self.queue_manager.add_workflow(item, cell_size_m)
         if role == item.role and role == "factor":
             item.data(3)["analysis_mode"] = "factor_aggregation"
-            task = self.queue_manager.add_workflow(item)
+            task = self.queue_manager.add_workflow(item, cell_size_m)
         if role == item.role and role == "dimension":
             item.data(3)["analysis_mode"] = "dimension_aggregation"
-            task = self.queue_manager.add_workflow(item)
+            task = self.queue_manager.add_workflow(item, cell_size_m)
         if role == item.role and role == "analysis":
             item.data(3)["analysis_mode"] = "analysis_aggregation"
-            task = self.queue_manager.add_workflow(item)
+            task = self.queue_manager.add_workflow(item, cell_size_m)
         if task is None:
             return
 
