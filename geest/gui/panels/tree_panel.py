@@ -113,6 +113,10 @@ class TreePanel(QWidget):
         self.treeView.doubleClicked.connect(
             self.on_item_double_clicked
         )  # Will show properties dialogs
+        # Connect the selection changed signal to update the selected index
+        self.treeView.selectionModel().selectionChanged.connect(
+            self.update_selected_index
+        )
 
         # Set layout
         layout.addWidget(self.treeView)
@@ -167,7 +171,9 @@ class TreePanel(QWidget):
         # Set the menu to the tool button
         self.prepare_analysis_button.setMenu(menu)
 
-        self.prepare_analysis_button.clicked.connect(self.prepare_analysis_pressed)
+        self.prepare_analysis_button.clicked.connect(
+            partial(self.prepare_analysis_pressed, scenario=scenario)
+        )
         # Add the combo box and button to the layout
         button_bar = QHBoxLayout()
         button_bar.addWidget(self.prepare_analysis_button)
@@ -914,14 +920,27 @@ class TreePanel(QWidget):
         # Assuming column 1 is where status updates are shown
         item.setData(1, status)
 
-    def prepare_analysis_pressed(self):
+    def prepare_analysis_pressed(self, scenario="Run All"):
         """
         This function processes all nodes in the QTreeView that have the 'layer' role.
         It iterates over the entire tree, collecting nodes with the 'layer' role, and
         processes each one by showing an animated icon, waiting for 2 seconds, and
         then removing the animation.
+
+        Args:
+            scenario (str): The scenario to execute (e.g., 'Run All', 'Run Selected', etc.)
+
         """
-        self.workflow_queue = ["indicators", "factors", "dimensions", "analysis"]
+        # Define the workflow queue based on the selected scenario
+        self.workflow_queue = self.get_workflow_queue(scenario)
+
+        if not self.workflow_queue:
+            QgsMessageLog.logMessage(
+                "No workflows to process.", tag="Geest", level=Qgis.Info
+            )
+            return
+
+        # self.workflow_queue = ["indicators", "factors", "dimensions", "analysis"]
         self.overall_progress_bar.setVisible(True)
         self.workflow_progress_bar.setVisible(True)
         self.help_button.setVisible(False)
@@ -977,3 +996,81 @@ class TreePanel(QWidget):
 
         # Show the menu below the button
         menu.exec_(self.prepare_analysis_button.mapToGlobal(position))
+
+    def get_workflow_queue(self, scenario):
+        """
+        Get a list of workflows based on the selected scenario.
+
+        Args:
+            scenario (str): The scenario to execute.
+
+        Returns:
+            list: A list of workflows to be processed.
+        """
+        workflow_queue = []
+
+        # Retrieve all items in the tree model
+        root_item = self.model.rootItem
+        all_items = self.collect_tree_items(root_item)
+
+        # Based on the scenario, filter items
+        if scenario == "Run All":
+            workflow_queue = all_items
+
+        elif scenario == "Run All Incomplete":
+            workflow_queue = [item for item in all_items if item.getStatus() != "✔️"]
+
+        elif scenario == "Run Selected":
+            if self.selected_index is not None:
+                workflow_queue = [all_items[self.selected_index]]
+
+        elif scenario == "Run Selected and All Below It":
+            if self.selected_index is not None:
+                workflow_queue = all_items[self.selected_index :]
+
+        elif scenario == "Run Selected and All Incomplete Below It":
+            if self.selected_index is not None:
+                workflow_queue = [
+                    item
+                    for item in all_items[self.selected_index :]
+                    if item.getStatus() != "✔️"
+                ]
+
+        return workflow_queue
+
+    def collect_tree_items(self, root_item):
+        """
+        Recursively collect all items in the tree.
+
+        Args:
+            root_item (JsonTreeItem): The root item of the tree.
+
+        Returns:
+            list: A list of all tree items.
+        """
+        items = []
+
+        def recursive_collect(item):
+            items.append(item)
+            for i in range(item.childCount()):
+                child = item.child(i)
+                recursive_collect(child)
+
+        recursive_collect(root_item)
+        return items
+
+    def update_selected_index(self, selected, deselected):
+        """
+        Update the selected index based on the current selection in the tree view.
+
+        Args:
+            selected (QItemSelection): The newly selected items.
+            deselected (QItemSelection): The previously selected items.
+        """
+        # Get the first selected index (if multiple items are selected, only the first is considered)
+        indexes = selected.indexes()
+        if indexes:
+            index = indexes[0]  # Take the first selected index
+            self.selected_index = index.row()
+        else:
+            self.selected_index = None
