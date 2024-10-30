@@ -60,6 +60,10 @@ class TreePanel(QWidget):
         self.tree_view_visible = True
         self.edit_mode = int(setting(key="edit_mode", default=0))
 
+        self.selected_index = (
+            None  # Initialize selected_index to track the selection in the tree
+        )
+
         layout = QVBoxLayout()
 
         if json_file:
@@ -161,15 +165,22 @@ class TreePanel(QWidget):
             "Run Selected and All Incomplete Below It",
         ]
 
+        # Set the menu to the tool button
+        self.prepare_analysis_button.setMenu(menu)
+
         for scenario in scenarios:
             action = QAction(scenario, self)
             action.triggered.connect(
-                lambda checked, s=scenario: self.prepare_analysis_pressed
+                partial(self.prepare_analysis_pressed, scenario=scenario)
             )
             menu.addAction(action)
 
         # Set the menu to the tool button
         self.prepare_analysis_button.setMenu(menu)
+
+        self.prepare_analysis_button.clicked.connect(
+            partial(self.prepare_analysis_pressed, scenario=scenario)
+        )
 
         self.prepare_analysis_button.clicked.connect(
             partial(self.prepare_analysis_pressed, scenario=scenario)
@@ -747,22 +758,38 @@ class TreePanel(QWidget):
         else:
             self.treeView.setEditTriggers(QTreeView.NoEditTriggers)
 
-    def start_workflows(self, type=None):
+    def start_workflows(self, type=None, skip_completed=False):
         """Start a workflow for each 'layer' node in the tree.
 
         We process in the order of layers, factors, and dimensions since there
         is a dependency between them. For example, a factor depends on its layers.
         """
         if type == "indicators":
-            self._start_workflows(self.treeView.model().rootItem, role="indicator")
+            self._start_workflows(
+                self.treeView.model().rootItem,
+                role="indicator",
+                skip_completed=skip_completed,
+            )
         elif type == "factors":
-            self._start_workflows(self.treeView.model().rootItem, role="factor")
+            self._start_workflows(
+                self.treeView.model().rootItem,
+                role="factor",
+                skip_completed=skip_completed,
+            )
         elif type == "dimensions":
-            self._start_workflows(self.treeView.model().rootItem, role="dimension")
+            self._start_workflows(
+                self.treeView.model().rootItem,
+                role="dimension",
+                skip_completed=skip_completed,
+            )
         elif type == "analysis":
-            self._start_workflows(self.treeView.model().rootItem, role="analysis")
+            self._start_workflows(
+                self.treeView.model().rootItem,
+                role="analysis",
+                skip_completed=skip_completed,
+            )
 
-    def _start_workflows(self, parent_item, role=None):
+    def _start_workflows(self, parent_item, role=None, skip_completed=False):
         """
         Recursively start workflows for each node in the tree.
         Connect workflow signals to the corresponding slots for updates.
@@ -771,7 +798,16 @@ class TreePanel(QWidget):
         """
         for i in range(parent_item.childCount()):
             child_item = parent_item.child(i)
-            self.queue_workflow_task(child_item, role)
+            # Skip items with "✔️" status if skip_completed is True
+            if role == child_item.role and (
+                not skip_completed or child_item.getStatus() != "✔️"
+            ):
+                QgsMessageLog.logMessage(
+                    f"Queueing {role} workflow for {child_item} (Status: {child_item.getStatus()})",
+                    "Geest",
+                    level=Qgis.Info,
+                )
+                self.queue_workflow_task(child_item, role)
             # Recursively process children (dimensions, factors)
             self._start_workflows(child_item, role)
 
@@ -922,6 +958,12 @@ class TreePanel(QWidget):
             scenario (str): The scenario to execute (e.g., 'Run All', 'Run Selected', etc.)
 
         """
+        # Log the selected scenario
+        QgsMessageLog.logMessage(
+            f"Selected Scenario: {scenario}", "Geest", level=Qgis.Info
+        )
+        # Set skip_completed to True only for "Run All Incomplete"
+        skip_completed = scenario == "Run All Incomplete"
         # Define the workflow queue based on the selected scenario
         self.workflow_queue = self.get_workflow_queue(scenario)
 
@@ -941,11 +983,12 @@ class TreePanel(QWidget):
         self.overall_progress_bar.setMaximum(total_items)
         self.workflow_progress_bar.setValue(0)
         self.overall_progress_bar.setMaximum(100)
-        self.run_next_worflow_queue()
+
+        self.run_next_worflow_queue(skip_completed=skip_completed)
         # rest will be called iteratively when the workflow queue managed completed slot is called
         # this is set up in the ctor of the tree panel
 
-    def run_next_worflow_queue(self):
+    def run_next_worflow_queue(self, skip_completed=False):
         """
         Run the next group of workflows in the queue.
         If self.workflow_queue is empty, the function will return.
@@ -958,35 +1001,13 @@ class TreePanel(QWidget):
             return
         # pop the first item from the queue
         next_workflow = self.workflow_queue.pop(0)
-        self.start_workflows(type=next_workflow)
+        # Run the next workflow, using skip_completed to control whether completed items are skipped
+        self.start_workflows(type=next_workflow, skip_completed=skip_completed)
         debug_env = int(os.getenv("GEEST_DEBUG", 0))
         if debug_env:
             self.queue_manager.start_processing_in_foreground()
         else:
             self.queue_manager.start_processing()
-
-    def show_scenario_menu(self, position: QPoint):
-        # Create the menu and add the scenarios as actions
-        menu = QMenu()
-
-        # Define scenarios as menu actions
-        scenarios = [
-            "Run All",
-            "Run All Incomplete",
-            "Run Selected",
-            "Run Selected and All Below It",
-            "Run Selected and All Incomplete Below It",
-        ]
-
-        # Add each scenario as an action in the menu
-        for scenario in scenarios:
-            action = menu.addAction(scenario)
-            action.triggered.connect(
-                lambda checked, s=scenario: self.execute_scenario(s)
-            )
-
-        # Show the menu below the button
-        menu.exec_(self.prepare_analysis_button.mapToGlobal(position))
 
     def get_workflow_queue(self, scenario):
         """
@@ -1006,10 +1027,27 @@ class TreePanel(QWidget):
 
         # Based on the scenario, filter items
         if scenario == "Run All":
-            workflow_queue = all_items
+            workflow_queue = ["indicators", "factors", "dimensions", "analysis"]
+            QgsMessageLog.logMessage(
+                f"Run All: {workflow_queue}", tag="Geest", level=Qgis.Info
+            )
 
         elif scenario == "Run All Incomplete":
-            workflow_queue = [item for item in all_items if item.getStatus() != "✔️"]
+            incomplete_items = {
+                "indicators": self.collect_incomplete_items(root_item, "indicator"),
+                "factors": self.collect_incomplete_items(root_item, "factor"),
+                "dimensions": self.collect_incomplete_items(root_item, "dimension"),
+                "analysis": self.collect_incomplete_items(root_item, "analysis"),
+            }
+            # Add only non-empty lists to the queue, maintaining the order
+            for role in ["indicators", "factors", "dimensions", "analysis"]:
+                if incomplete_items[role]:
+                    workflow_queue.append(role)
+            QgsMessageLog.logMessage(
+                f"Run All Incomplete Queue: {workflow_queue}",
+                tag="Geest",
+                level=Qgis.Info,
+            )
 
         elif scenario == "Run Selected":
             if self.selected_index is not None:
@@ -1046,6 +1084,17 @@ class TreePanel(QWidget):
             for i in range(item.childCount()):
                 child = item.child(i)
                 recursive_collect(child)
+                QgsMessageLog.logMessage(
+                    f"Item: {child.data(0)} : {child.data(1)}",
+                    tag="Geest",
+                    level=Qgis.Info,
+                )
+
+        QgsMessageLog.logMessage(
+            f"Root Item: {root_item.data(0)} : {root_item.data(1)}",
+            tag="Geest",
+            level=Qgis.Info,
+        )
 
         recursive_collect(root_item)
         return items
@@ -1065,3 +1114,41 @@ class TreePanel(QWidget):
             self.selected_index = index.row()
         else:
             self.selected_index = None
+
+    def collect_incomplete_items(self, parent_item, role):
+        """
+        Recursively collects incomplete items by role from the tree.
+
+        Args:
+            parent_item (JsonTreeItem): The parent item to search within.
+            role (str): The role to filter for (e.g., 'indicator').
+
+        Returns:
+            list: A list of incomplete items of the specified role.
+        """
+        incomplete_items = []
+
+        # Traverse child items and check their role and status
+        for i in range(parent_item.childCount()):
+            child_item = parent_item.child(i)
+            item_status = child_item.getStatus()
+            item_role = child_item.role
+            QgsMessageLog.logMessage(
+                f"Checking item '{child_item.data(0)}' with role '{item_role}' and status '{item_status}'",
+                tag="Geest",
+                level=Qgis.Info,
+            )
+
+            # Check if the item's role matches and it's incomplete
+            if child_item.role == role and child_item.getStatus() != "✔️":
+                QgsMessageLog.logMessage(
+                    f"Adding incomplete item '{child_item.data(0)}' to the queue",
+                    tag="Geest",
+                    level=Qgis.Info,
+                )
+                incomplete_items.append(child_item)
+
+            # Recursively check for incomplete items within the child
+            incomplete_items.extend(self.collect_incomplete_items(child_item, role))
+
+        return incomplete_items

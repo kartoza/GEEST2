@@ -183,12 +183,12 @@ class JsonTreeItem:
             if "Failed" in data.get("result", ""):
                 return "x"
             # Item required and not configured
-            if "Do Not Use" in data.get("analysis_mode", "") and data.get(
+            if "do_not_use" in data.get("analysis_mode", "") and data.get(
                 "indicator_required", False
             ):
                 return "-"
             # Item not required but not configured
-            if "Do Not Use" in data.get("analysis_mode", "") and not data.get(
+            if "do_not_use" in data.get("analysis_mode", "") and not data.get(
                 "indicator_required", False
             ):
                 return "!"
