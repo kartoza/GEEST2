@@ -75,7 +75,7 @@ class WorkflowFactory:
                 return DefaultIndexScoreWorkflow(
                     item, cell_size_m, feedback, context, scenario
                 )
-            elif analysis_mode == "do_not_use":
+            elif analysis_mode == "Do Not Use":
                 return DontUseWorkflow(item, cell_size_m, feedback, context, scenario)
             elif analysis_mode == "use_multi_buffer_point":
                 return MultiBufferDistancesWorkflow(
