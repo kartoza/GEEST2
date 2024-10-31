@@ -26,6 +26,7 @@ class SafetyRasterWorkflow(WorkflowBase):
         cell_size_m: float,
         feedback: QgsFeedback,
         context: QgsProcessingContext,
+        scenario: str,
     ):
         """
         Initialize the workflow with attributes and feedback.
@@ -33,7 +34,7 @@ class SafetyRasterWorkflow(WorkflowBase):
         :param feedback: QgsFeedback object for progress reporting and cancellation.
         """
         super().__init__(
-            item, cell_size_m, feedback, context
+            item, cell_size_m, feedback, context, scenario
         )  # ⭐️ Item is a reference - whatever you change in this item will directly update the tree
         self.workflow_name = "use_nighttime_lights"
         layer_name = self.attributes.get("use_nighttime_lights_raster", None)

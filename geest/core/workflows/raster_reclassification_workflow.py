@@ -29,6 +29,7 @@ class RasterReclassificationWorkflow(WorkflowBase):
         cell_size_m: float,
         feedback: QgsFeedback,
         context: QgsProcessingContext,
+        scenario: str,
     ):
         """
         Initialize the workflow with attributes and feedback.
@@ -38,7 +39,7 @@ class RasterReclassificationWorkflow(WorkflowBase):
         :param context: QgsProcessingContext object for processing. This can be used to pass objects to the thread. e.g. the QgsProject Instance
         """
         super().__init__(
-            item, cell_size_m, feedback, context
+            item, cell_size_m, feedback, context, scenario
         )  # ⭐️ Item is a reference - whatever you change in this item will directly update the tree
         self.workflow_name = "use_environmental_hazards"
 

@@ -42,6 +42,7 @@ class WorkflowBase(ABC):
         cell_size_m: 100.0,
         feedback: QgsFeedback,
         context: QgsProcessingContext,
+        scenario: str,
     ):
         """
         Initialize the workflow with attributes and feedback.
@@ -88,6 +89,7 @@ class WorkflowBase(ABC):
         self.attributes["result"] = "Not Run"
         self.workflow_is_legacy = True
         self.aggregation = False
+        self.scenario = scenario if scenario else "Run All"
 
     #
     # Every concrete subclass needs to implement these three methods
@@ -210,25 +212,32 @@ class WorkflowBase(ABC):
         #
 
         # Check if a result file already exists and reuse it if the workflow has been run before
-        raster_output = self.attributes.get("result_file", "")
-        if raster_output and os.path.exists(raster_output):
-            raster_layer = QgsRasterLayer(raster_output, "Existing Result Raster")
-            if raster_layer.isValid():
-                QgsMessageLog.logMessage(
-                    f"Using existing raster result file for {self.workflow_name}: {raster_output}",
-                    tag="Geest",
-                    level=Qgis.Info,
-                )
-                self.attributes["result"] = (
-                    f"{self.workflow_name} Workflow Completed (Existing)"
-                )
-                return True
-            else:
-                QgsMessageLog.logMessage(
-                    f"Invalid or missing raster at {raster_output}. Proceeding with workflow processing.",
-                    tag="Geest",
-                    level=Qgis.Warning,
-                )
+        if self.scenario == "Run All Incomplete":
+            raster_output = self.attributes.get("result_file", "")
+            if raster_output and os.path.exists(raster_output):
+                raster_layer = QgsRasterLayer(raster_output, "Existing Result Raster")
+                if raster_layer.isValid():
+                    QgsMessageLog.logMessage(
+                        f"Using existing raster result file for {self.workflow_name}: {raster_output}",
+                        tag="Geest",
+                        level=Qgis.Info,
+                    )
+                    self.attributes["result"] = (
+                        f"{self.workflow_name} Workflow Completed (Existing)"
+                    )
+                    return True
+                else:
+                    QgsMessageLog.logMessage(
+                        f"Invalid or missing raster at {raster_output}. Proceeding with workflow processing.",
+                        tag="Geest",
+                        level=Qgis.Warning,
+                    )
+        else:
+            QgsMessageLog.logMessage(
+                "Executing all",
+                tag="Geest",
+                level=Qgis.Info,
+            )
 
         feedback = QgsProcessingFeedback()
         output_rasters = []

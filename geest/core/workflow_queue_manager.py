@@ -45,7 +45,9 @@ class WorkflowQueueManager(QObject):
         QgsMessageLog.logMessage(f"Task added", tag="Geest", level=Qgis.Info)
         return task
 
-    def add_workflow(self, item: JsonTreeItem, cell_size_m: float) -> None:
+    def add_workflow(
+        self, item: JsonTreeItem, cell_size_m: float, scenario: str
+    ) -> None:
         """
         Add a task to the WorkflowQueue for QgsProcessingContext using the item provided.
 
@@ -65,6 +67,7 @@ class WorkflowQueueManager(QObject):
             item=item,
             cell_size_m=cell_size_m,
             context=context,
+            scenario=scenario,
         )
         self.workflow_queue.add_job(task)
         QgsMessageLog.logMessage(

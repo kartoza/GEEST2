@@ -20,6 +20,7 @@ class DimensionAggregationWorkflow(AggregationWorkflowBase):
         cell_size_m: float,
         feedback: QgsFeedback,
         context: QgsProcessingContext,
+        scenario: str,
     ):
         """
         Initialize the workflow with attributes and feedback.
@@ -29,7 +30,7 @@ class DimensionAggregationWorkflow(AggregationWorkflowBase):
         :context: QgsProcessingContext object for processing. This can be used to pass objects to the thread. e.g. the QgsProject Instance
         """
         super().__init__(
-            item, cell_size_m, feedback, context
+            item, cell_size_m, feedback, context, scenario
         )  # ⭐️ Item is a reference - whatever you change in this item will directly update the tree
         self.aggregation_attributes = self.item.getDimensionAttributes()
         self.id = self.attributes["id"].lower().replace(" ", "_")

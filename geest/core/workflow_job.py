@@ -23,6 +23,7 @@ class WorkflowJob(QgsTask):
         context: QgsProcessingContext,
         item: JsonTreeItem,
         cell_size_m: float = 100.0,
+        scenario: str = "Run All",
     ):
         """
         Initialize the workflow job.
@@ -39,6 +40,7 @@ class WorkflowJob(QgsTask):
         )
         self._item = item  # ⭐️ This is a reference - whatever you change in this item will directly update the tree
         self._cell_size_m = cell_size_m  # Cell size in meters for raster operations
+        self.scenario = scenario  # Scenario name
         self._feedback = QgsFeedback()  # Feedback object for progress and cancellation
         workflow_factory = WorkflowFactory()
         self._workflow = workflow_factory.create_workflow(
@@ -46,6 +48,7 @@ class WorkflowJob(QgsTask):
             cell_size_m=self._cell_size_m,
             feedback=self._feedback,
             context=self.context,
+            scenario=scenario,
         )  # Create the workflow
         # TODO this raises an error... need to figure out how to connect this signal
         # self._workflow.progressChanged.connect(self.setProgress)
