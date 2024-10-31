@@ -402,6 +402,12 @@ class TreePanel(QWidget):
         run_item_action = QAction("Run Item Workflow", self)
         run_item_action.triggered.connect(lambda: self.run_item(item, role=item.role))
 
+        # Check if 'Do Not Use' is in the 'analysis_mode' of the item and disable if necessary
+        if "Do Not Use" in item.data(3).get("analysis_mode", ""):
+            run_item_action.setEnabled(False)
+        else:
+            run_item_action.setEnabled(True)
+
         if item.role == "analysis":
             menu = QMenu(self)
             menu.addAction(show_json_attributes_action)
