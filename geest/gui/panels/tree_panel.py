@@ -789,6 +789,16 @@ class TreePanel(QWidget):
         """
         for i in range(parent_item.childCount()):
             child_item = parent_item.child(i)
+
+            # Check for "Do Not Use" in analysis_mode
+            if "Do Not Use" in child_item.data(3).get("analysis_mode", ""):
+                QgsMessageLog.logMessage(
+                    f"Skipping {role} for item {child_item} due to 'Do Not Use' mode.",
+                    "Geest",
+                    level=Qgis.Info,
+                )
+                continue  # Skip this item
+
             # Skip items with "✔️" status if skip_completed is True
             if role == child_item.role and (
                 not skip_completed or not child_item.itemData[3].get("result_file", "")
@@ -817,6 +827,14 @@ class TreePanel(QWidget):
         ⭐️ These calls all pass a reference of the item to the workflow task.
             The task directly modifies the item's properties to update the tree.
         """
+        if "Do Not Use" in item.data(3).get("analysis_mode", ""):
+            QgsMessageLog.logMessage(
+                f"Skipping task for {role} {item} due to 'Do Not Use' mode.",
+                "Geest",
+                level=Qgis.Info,
+            )
+            return  # Skip queuing this task
+
         task = None
         cell_size_m = (
             self.model.get_analysis_item().data(3).get("analysis_cell_size_m", 100.0)
