@@ -1,23 +1,5 @@
 <?xml version = '1.0' encoding = 'UTF-8'?>
 <plugins>
-<pyqgis_plugin name="Gender Enabling Environments Spatial Tool (GEEST)" version="0.2.6">
-                <description><![CDATA[Gender Enabling Environments Spatial Tool]]></description>
-                <about><![CDATA[This tool employs a multicriteria evaluation (MCE) framework to spatially describe womens' access to formal employment and business opportunities in the renewable energy sector in Small Island Developing States (SIDS). The MCE framework allows for the incorporation and assessment of dimensions, factors, and indicators to identify where the enabling environments (or lack thereof) are located for women to secure employment opportunities in SIDS.]]></about>
-                <version>0.2.6</version>
-                <qgis_minimum_version>3.0</qgis_minimum_version>
-                <homepage><![CDATA[]]></homepage>
-                <file_name>geest.0.2.6.zip</file_name>
-                <icon>icon.png</icon>
-                <author_name><![CDATA[Kartoza]]></author_name>
-                <download_url>https://github.com/kartoza/GEEST2/releases/download/v0.2.6/geest.0.2.6.zip</download_url>
-                <update_date>2024-11-05 06:33:46</update_date>
-                <experimental>False</experimental>
-                <deprecated>False</deprecated>
-                <tracker><![CDATA[https://github.com/kartoza/GEEST2/issues]]></tracker>
-                <repository><![CDATA[https://github.com/kartoza/GEEST2]]></repository>
-                <tags><![CDATA[]]></tags>
-                <server>False</server>
-            </pyqgis_plugin>
 <pyqgis_plugin name="Gender Enabling Environments Spatial Tool (GEEST)" version="0.2.7">
                 <description><![CDATA[Gender Enabling Environments Spatial Tool]]></description>
                 <about><![CDATA[This tool employs a multicriteria evaluation (MCE) framework to spatially describe womens' access to formal employment and business opportunities in the renewable energy sector in Small Island Developing States (SIDS). The MCE framework allows for the incorporation and assessment of dimensions, factors, and indicators to identify where the enabling environments (or lack thereof) are located for women to secure employment opportunities in SIDS.]]></about>
@@ -29,6 +11,24 @@
                 <author_name><![CDATA[Kartoza]]></author_name>
                 <download_url>https://github.com/kartoza/GEEST2/releases/download/v0.2.7/geest.0.2.7.zip</download_url>
                 <update_date>2024-11-05 07:50:18</update_date>
+                <experimental>False</experimental>
+                <deprecated>False</deprecated>
+                <tracker><![CDATA[https://github.com/kartoza/GEEST2/issues]]></tracker>
+                <repository><![CDATA[https://github.com/kartoza/GEEST2]]></repository>
+                <tags><![CDATA[]]></tags>
+                <server>False</server>
+            </pyqgis_plugin>
+<pyqgis_plugin name="Gender Enabling Environments Spatial Tool (GEEST)" version="0.2.8">
+                <description><![CDATA[Gender Enabling Environments Spatial Tool]]></description>
+                <about><![CDATA[This tool employs a multicriteria evaluation (MCE) framework to spatially describe womens' access to formal employment and business opportunities in the renewable energy sector in Small Island Developing States (SIDS). The MCE framework allows for the incorporation and assessment of dimensions, factors, and indicators to identify where the enabling environments (or lack thereof) are located for women to secure employment opportunities in SIDS.]]></about>
+                <version>0.2.8</version>
+                <qgis_minimum_version>3.0</qgis_minimum_version>
+                <homepage><![CDATA[]]></homepage>
+                <file_name>geest.0.2.8.zip</file_name>
+                <icon>icon.png</icon>
+                <author_name><![CDATA[Kartoza]]></author_name>
+                <download_url>https://github.com/kartoza/GEEST2/releases/download/v0.2.8/geest.0.2.8.zip</download_url>
+                <update_date>2024-11-11 06:49:54</update_date>
                 <experimental>True</experimental>
                 <deprecated>False</deprecated>
                 <tracker><![CDATA[https://github.com/kartoza/GEEST2/issues]]></tracker>
