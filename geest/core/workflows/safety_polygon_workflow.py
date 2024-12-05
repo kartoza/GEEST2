@@ -122,8 +122,9 @@ class SafetyPolygonWorkflow(WorkflowBase):
             for feature in layer.getFeatures():
                 perceived_safety = feature[self.selected_field]
                 score = self.safety_mapping_table.get(perceived_safety)
-                # Scale perceived safety values between 0 and 5
-                reclass_val = self._scale_value(score, 0, 100, 0, 5)
+                # Scale perceived safety values between 1 and 5
+                # Changed to 1-5 for issue #675
+                reclass_val = self._scale_value(score, 0, 100, 1, 5)
                 feature.setAttribute("value", reclass_val)
                 layer.updateFeature(feature)
         return layer
