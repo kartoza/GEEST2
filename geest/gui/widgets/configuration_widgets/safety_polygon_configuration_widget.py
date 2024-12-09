@@ -8,7 +8,7 @@ from qgis.PyQt.QtWidgets import (
 from qgis.PyQt.QtWidgets import QSizePolicy
 from qgis.core import Qgis
 from .base_configuration_widget import BaseConfigurationWidget
-from geest.utilities import log_message
+from geest.utilities import log_message, is_qgis_dark_theme_active
 
 
 class SafetyPolygonConfigurationWidget(BaseConfigurationWidget):
@@ -95,11 +95,16 @@ class SafetyPolygonConfigurationWidget(BaseConfigurationWidget):
 
             def on_value_changed(value):
                 # Color handling for current cell
+                if is_qgis_dark_theme_active():
+                    font_color = "color: white;"
+                else:
+                    font_color = "color: black;"
+
                 if value is None or not (0 <= value <= 100):
                     value_item.setStyleSheet("color: red;")
                     value_item.setValue(0)
                 else:
-                    value_item.setStyleSheet("color: black;")
+                    value_item.setStyleSheet(font_color)
                 self.update_cell_colors()
                 self.update_data()
 
@@ -117,13 +122,15 @@ class SafetyPolygonConfigurationWidget(BaseConfigurationWidget):
                 all_zeros = False
                 break
 
+        if is_qgis_dark_theme_active():
+            font_color = "color: white;"
+        else:
+            font_color = "color: black;"
         # Color all cells based on all-zeros check
         for r in range(self.table_widget.rowCount()):
             spin_widget = self.table_widget.cellWidget(r, 1)
             if spin_widget:
-                spin_widget.setStyleSheet(
-                    "color: red;" if all_zeros else "color: black;"
-                )
+                spin_widget.setStyleSheet("color: red;" if all_zeros else font_color)
 
     def table_to_dict(self):
         updated_attributes = {}
