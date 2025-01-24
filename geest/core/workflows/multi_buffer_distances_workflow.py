@@ -205,7 +205,8 @@ class MultiBufferDistancesWorkflow(WorkflowBase):
             # Make API calls using ORSClient for the subset
             json = self._fetch_isochrones(subset_layer)
             layer = self._create_isochrone_layer(json)
-            self.temp_layers.append(layer)
+            if layer:
+                self.temp_layers.append(layer)
             log_message(
                 f"Processed subset {i + 1} to {min(i + self.subset_size, total_features)} of {total_features}",
                 tag="Geest",
@@ -364,11 +365,14 @@ class MultiBufferDistancesWorkflow(WorkflowBase):
         # Parse the features from ORS response
         verbose_mode = int(setting(key="verbose_mode", default=0))
         if verbose_mode:
-            log_message(
-                f"Creating isochrone layer with {len(isochrone_data['features'])} features",
-                tag="Geest",
-                level=Qgis.Info,
-            )
+            if isochrone_data and "features" in isochrone_data:
+                log_message(
+                    f"Creating isochrone layer with {len(isochrone_data['features'])} features",
+                    tag="Geest",
+                    level=Qgis.Info,
+                )
+            else:
+                return None
         features = []
         for feature_data in isochrone_data["features"]:
             geometry = feature_data["geometry"]
