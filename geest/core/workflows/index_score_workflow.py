@@ -69,18 +69,24 @@ class DefaultIndexScoreWorkflow(WorkflowBase):
         log_message(f"Index score: {self.index_score}")
 
         # Create a scored boundary layer filtered by current_area
+        log_message(f"Creating scored boundary layer for area {index}")
         scored_layer = self.create_scored_boundary_layer(
             clip_area=clip_area,
             index=index,
         )
+        log_message(f"Scored layer created for area {index}")
 
         # Create a scored boundary layer
+        log_message(f"Rasterizing scored boundary layer for area {index}")
         raster_output = self._rasterize(
             scored_layer,
             current_bbox,
             index,
             value_field="score",
             default_value=255,
+        )
+        log_message(
+            f"Completed rasterized scored boundary layer rasterized for area {index}"
         )
         log_message(f"Raster output: {raster_output}")
         log_message(f"Workflow completed for area {index}")

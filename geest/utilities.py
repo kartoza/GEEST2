@@ -29,7 +29,7 @@ import subprocess
 
 from qgis.PyQt.QtCore import QUrl, QSettings, QRect
 from qgis.PyQt import uic
-from qgis.core import QgsMessageLog, Qgis, QgsProject, QgsLayerTreeGroup
+from qgis.core import QgsMessageLog, Qgis, QgsProject, QgsLayerTreeGroup, QgsVectorLayer
 from qgis.PyQt.QtWidgets import QApplication
 from qgis.core import QgsProject, Qgis
 from geest.core import setting
@@ -370,3 +370,29 @@ def linear_interpolation(
     if result > output_max:
         return output_max
     return result
+
+
+def vector_layer_type(layer: QgsVectorLayer) -> str:
+    """
+    Determines if a given QgsVectorLayer is a GeoPackage or a Shapefile.
+
+    Args:
+        layer (QgsVectorLayer): The QGIS vector layer.
+
+    Returns:
+        str: The type of layer ('GPKG', 'SHP', or 'Unknown').
+    """
+    if not layer.isValid():
+        return "Invalid layer"
+
+    # Get the source string and split at the pipe
+    source = layer.source().lower()
+    base_source = source.split("|")[0]  # Ignore anything after the first pipe
+
+    # Check the file extension
+    if base_source.endswith(".gpkg"):
+        return "GPKG"
+    elif base_source.endswith(".shp"):
+        return "SHP"
+    else:
+        return "Unknown"
