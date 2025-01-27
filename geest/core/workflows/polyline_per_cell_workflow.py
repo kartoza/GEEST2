@@ -102,7 +102,7 @@ class PolylinePerCellWorkflow(WorkflowBase):
             current_bbox,
             index,
             value_field="value",
-            default_value=0,
+            default_value=-9999,
         )
         return raster_output
 

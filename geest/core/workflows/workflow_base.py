@@ -436,7 +436,7 @@ class WorkflowBase(QObject):
         params = {
             "INPUT": aoi,
             "BAND": 1,
-            "FILL_VALUE": 0,
+            "FILL_VALUE": -9999,
             "OUTPUT": reprojected_raster_path,
         }
         processing.run("native:fillnodata", params)
@@ -448,7 +448,7 @@ class WorkflowBase(QObject):
         bbox: QgsGeometry,
         index: int,
         value_field: str = "value",
-        default_value: int = 0,
+        default_value: int = -9999,
     ) -> str:
         """
         Rasterize the vector layer based on the specified field using GDAL.
@@ -497,15 +497,16 @@ class WorkflowBase(QObject):
         raster_width = int((max_x - min_x) / self.cell_size_m)
         raster_height = int((max_y - min_y) / self.cell_size_m)
 
-        # Create an in-memory raster dataset
         output_path = os.path.join(
             self.workflow_directory, f"{self.layer_id}_{index}.tif"
         )
         raster_driver = gdal.GetDriverByName("GTiff")
         raster_ds = raster_driver.Create(
-            output_path, raster_width, raster_height, 1, gdal.GDT_Byte
+            output_path, raster_width, raster_height, 1, gdal.GDT_Float32
         )
-
+        # Set NoData value for the first band
+        raster_band = raster_ds.GetRasterBand(1)
+        raster_band.SetNoDataValue(-9999)
         # Set the geotransform and projection
         geotransform = (
             min_x,
@@ -532,7 +533,8 @@ class WorkflowBase(QObject):
                 f"ATTRIBUTE={value_field}",
                 f"INIT={default_value}",
                 "ALL_TOUCHED=TRUE",
-                "NODATA=255",
+                "NODATA=-9999",  # Initialize unassigned pixels to -9999
+                "INIT=-9999",  # Ensure initialization matches NoData
             ],
         )
         log_message(f"Rasterization complete")

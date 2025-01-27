@@ -21,6 +21,8 @@ in pkgs.mkShell rec {
     python3Packages.pandas
     python3Packages.odfpy
     python3Packages.psutil
+    python3Packages.gdal
+
 
     # This executes some shell code to initialize a venv in $venvDir before
     # dropping into the shell

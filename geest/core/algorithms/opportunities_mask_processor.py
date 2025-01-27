@@ -378,7 +378,7 @@ class OpportunitiesMaskProcessor(QgsTask):
             "WIDTH": self.cell_size_m,
             "HEIGHT": self.cell_size_m,
             "EXTENT": current_bbox.boundingBox(),
-            "NODATA": 0,
+            "NODATA": -9999,
             "OPTIONS": "",
             "DATA_TYPE": 0,  # byte
             "INIT": None,
