@@ -110,14 +110,12 @@ class AggregationWorkflowBase(WorkflowBase):
             tag="Geest",
             level=Qgis.Info,
         )
-
-        # Adjust the formula to explicitly check for NoData
         try:
 
             params = {
                 "INPUT_A": merged_output,
                 "BAND_A": 1,
-                "FORMULA": "A>=0",
+                "FORMULA": "A<0",  # set all the non nodata values to 0
                 "NO_DATA": None,
                 "EXTENT_OPT": 0,
                 "PROJWIN": None,
@@ -145,22 +143,21 @@ class AggregationWorkflowBase(WorkflowBase):
             level=Qgis.Info,
         )
         for raster, final_output in zip(raster_layers, final_outputs):
-            processing.run(
-                "gdal:rastercalculator",
-                {
-                    "INPUT_A": mask_output,
-                    "BAND_A": 1,
-                    "INPUT_B": raster,
-                    "BAND_B": 1,
-                    "FORMULA": "where(B == -9999, A, B)",
-                    "NO_DATA": -9999,
-                    "RTYPE": 5,  # Float32
-                    "OUTPUT": final_output,
-                },
-            )
-            log_message(
-                f"Masked layer saved at: {final_output}", tag="Geest", level=Qgis.Info
-            )
+
+            layers_to_merge = [mask_output, raster]
+            try:
+                merge_rasters(layers_to_merge, merged_output)
+                log_message(
+                    f"Raster layers merged successfully: {merged_output}",
+                    tag="Geest",
+                    level=Qgis.Info,
+                )
+            except Exception as e:
+                log_message(
+                    f"Error during merging: {str(e)}", tag="Geest", level=Qgis.Critical
+                )
+                log_message(traceback.format_exc(), tag="Geest", level=Qgis.Critical)
+                return None
 
         # Step 4: Weighted combination
         log_message(

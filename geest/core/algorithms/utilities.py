@@ -279,6 +279,12 @@ def merge_rasters(input_files, output_file, nodata_value=-9999):
     :param output_file: Path to the output merged raster file.
     :param nodata_value: NoData value for the output raster.
     """
+    log_message(f"Merge Rasters Started", tag="Geest", level=Qgis.Info)
+    for raster_path in input_files:
+        log_message(f"Checking raster: {raster_path}", tag="Geest", level=Qgis.Info)
+        if not os.path.exists(raster_path):
+            raise FileNotFoundError(f"Could not open raster file: {raster_path}")
+
     # Collect raster metadata to compute the union of extents
     ulx, uly, lrx, lry = float("inf"), float("-inf"), float("-inf"), float("inf")
     pixel_size_x, pixel_size_y = None, None
