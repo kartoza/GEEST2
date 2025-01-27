@@ -113,18 +113,20 @@ class AggregationWorkflowBase(WorkflowBase):
 
         # Adjust the formula to explicitly check for NoData
         try:
-            processing.run(
-                "gdal:rastercalculator",
-                {
-                    "INPUT_A": merged_output,
-                    "BAND_A": 1,
-                    # Formula: Assign 1 where valid data exists, and 0 otherwise
-                    "FORMULA": "A > 0",
-                    "NO_DATA": 0,
-                    "RTYPE": 1,  # Byte (0 or 1)
-                    "OUTPUT": mask_output,
-                },
-            )
+
+            params = {
+                "INPUT_A": merged_output,
+                "BAND_A": 1,
+                "FORMULA": "A>=0",
+                "NO_DATA": None,
+                "EXTENT_OPT": 0,
+                "PROJWIN": None,
+                "RTYPE": 0,
+                "OPTIONS": "",
+                "EXTRA": "",
+                "OUTPUT": mask_output,
+            }
+            processing.run("gdal:rastercalculator", params)
             log_message(
                 f"Mask raster saved at: {mask_output}", tag="Geest", level=Qgis.Info
             )
