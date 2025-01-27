@@ -146,7 +146,7 @@ class MultiBufferDistancesWorkflow(WorkflowBase):
         index: int,
     ) -> str:
         """
-        Executes the actual workflow logic for0 a single area.
+        Executes the actual workflow logic for a single area.
         Must be implemented by subclasses.
 
         :current_area: Current polygon from our study area.
@@ -164,6 +164,10 @@ class MultiBufferDistancesWorkflow(WorkflowBase):
         )
 
         scored_buffers = self._assign_scores(buffers)
+
+        if scored_buffers is False:
+            log_message("No scored buffers were created.", level=Qgis.Warning)
+            return False
 
         raster_output = self._rasterize(
             input_layer=scored_buffers,

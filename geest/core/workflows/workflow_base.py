@@ -309,6 +309,14 @@ class WorkflowBase(QObject):
                     )
 
                 # clip the area by its matching mask layer in study_area geopackage
+                if not raster_output:
+                    log_message(
+                        f"Raster output is None for area {index}. Skipping this area.",
+                        tag="Geest",
+                        level=Qgis.Warning,
+                    )
+                    continue
+
                 masked_layer = self._mask_raster(
                     raster_path=raster_output,
                     area_geometry=clip_area,
@@ -468,6 +476,9 @@ class WorkflowBase(QObject):
         # Using the qgis vector layer provider
 
         # Create a GDAL dataset for the vector layer
+        if not input_layer:
+            raise Exception("Rasterize input layer is None")
+
         vector_path = input_layer.source()
         layer_type = vector_layer_type(input_layer)
         if layer_type == "GPKG":
