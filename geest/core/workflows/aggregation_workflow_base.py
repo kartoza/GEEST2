@@ -69,8 +69,18 @@ class AggregationWorkflowBase(WorkflowBase):
         merged_output = os.path.join(
             self.workflow_directory, f"{self.id}_merged_{index}.tif"
         )
-        mask_output = os.path.join(
-            self.workflow_directory, f"{self.id}_mask_{index}.tif"
+        # Zero mask output is used to mask out the nodata values from the
+        # intermediate outputs without changing the effective value of the masked pixels
+        zero_mask_output_byte = os.path.join(
+            self.workflow_directory, f"{self.id}_zero_mask_byte_{index}.tif"
+        )
+        zero_mask_output = os.path.join(
+            self.workflow_directory, f"{self.id}_zero_mask_{index}.tif"
+        )
+        # Mask of 1 values is used in the final step 4 to
+        # mask out the nodata values from the final output
+        one_mask_output_byte = os.path.join(
+            self.workflow_directory, f"{self.id}_one_mask_byte_{index}.tif"
         )
         final_outputs = [
             os.path.join(
@@ -104,9 +114,9 @@ class AggregationWorkflowBase(WorkflowBase):
             log_message(traceback.format_exc(), tag="Geest", level=Qgis.Critical)
             return None
 
-        # Step 2: Create mask
+        # Step 2: Create masks
         log_message(
-            "Step 2: Creating a binary mask from the merged raster.",
+            "Step 2: Creating a one based and zero based masks from the merged raster.",
             tag="Geest",
             level=Qgis.Info,
         )
@@ -116,17 +126,37 @@ class AggregationWorkflowBase(WorkflowBase):
                 "INPUT_A": merged_output,
                 "BAND_A": 1,
                 "FORMULA": "A<0",  # set all the non nodata values to 0
-                "NO_DATA": None,
+                "NO_DATA": 255,
                 "EXTENT_OPT": 0,
                 "PROJWIN": None,
                 "RTYPE": 0,
                 "OPTIONS": "",
                 "EXTRA": "",
-                "OUTPUT": mask_output,
+                "OUTPUT": zero_mask_output_byte,
+            }
+            processing.run("gdal:rastercalculator", params)
+            params = {
+                "INPUT_A": merged_output,
+                "BAND_A": 1,
+                "FORMULA": "A>=0",  # set all the non nodata values to 1 <---- NOTE: This is the only change
+                "NO_DATA": 255,
+                "EXTENT_OPT": 0,
+                "PROJWIN": None,
+                "RTYPE": 0,
+                "OPTIONS": "",
+                "EXTRA": "",
+                "OUTPUT": one_mask_output_byte,
             }
             processing.run("gdal:rastercalculator", params)
             log_message(
-                f"Mask raster saved at: {mask_output}", tag="Geest", level=Qgis.Info
+                f"Zero based Byte Mask raster saved at: {zero_mask_output_byte}",
+                tag="Geest",
+                level=Qgis.Info,
+            )
+            log_message(
+                f"One based Byte Mask raster saved at: {one_mask_output_byte}",
+                tag="Geest",
+                level=Qgis.Info,
             )
         except Exception as e:
             log_message(
@@ -135,6 +165,31 @@ class AggregationWorkflowBase(WorkflowBase):
                 level=Qgis.Critical,
             )
             return None
+        # Convert the mask back to float32 for further processing
+        try:
+            gdal.Translate(
+                zero_mask_output,
+                zero_mask_output_byte,
+                format="GTiff",  # Output format
+                outputType=gdal.GDT_Float32,  # Change to Float32
+                noData=-9999,  # Set output nodata value to -9999
+                scaleParams=[
+                    [0, 254, 0, 254]
+                ],  # Preserve original values, excluding nodata
+            )
+
+        except Exception as e:
+            log_message(
+                f"Error converting mask to float32: {str(e)}",
+                tag="Geest",
+                level=Qgis.Critical,
+            )
+            raise e
+        log_message(
+            f"Float32 Mask raster saved at: {zero_mask_output}",
+            tag="Geest",
+            level=Qgis.Info,
+        )
 
         # Step 3: Merge each layer with the mask
         log_message(
@@ -144,11 +199,35 @@ class AggregationWorkflowBase(WorkflowBase):
         )
         for raster, final_output in zip(raster_layers, final_outputs):
 
-            layers_to_merge = [mask_output, raster]
+            # layers_to_merge = [mask_output, raster]
             try:
-                merge_rasters(layers_to_merge, merged_output)
                 log_message(
-                    f"Raster layers merged successfully: {merged_output}",
+                    f"Processing raster: {raster}", tag="Geest", level=Qgis.Info
+                )
+                log_message(
+                    f"Merging it onto mask: {zero_mask_output}",
+                    tag="Geest",
+                    level=Qgis.Info,
+                )
+                params = {
+                    "INPUT": [
+                        zero_mask_output,  # important, the mask should be the first raster
+                        raster,
+                    ],
+                    "PCT": False,
+                    "SEPARATE": False,
+                    "NODATA_INPUT": None,
+                    "NODATA_OUTPUT": -9999,
+                    "OPTIONS": "",
+                    "EXTRA": "",
+                    "DATA_TYPE": 5,  # Float32
+                    "OUTPUT": final_output,
+                }
+                processing.run("gdal:merge", params)
+
+                # merge_rasters(layers_to_merge, merged_output)
+                log_message(
+                    f"Raster layers merged successfully: {final_output}",
                     tag="Geest",
                     level=Qgis.Info,
                 )
@@ -181,19 +260,23 @@ class AggregationWorkflowBase(WorkflowBase):
             letter = letters[i]
             params[f"INPUT_{letter}"] = final_output
             params[f"BAND_{letter}"] = 1
+        # -------------------------------- works to here --------------------------------
 
         # Always assign Z to the mask layer
-        params["INPUT_Z"] = mask_output
-        params["BAND_Z"] = 1
+        mask_letter = letters[len(final_outputs)]
+        params[f"INPUT_{mask_letter}"] = one_mask_output_byte
+        params[f"BAND_{mask_letter}"] = 1
 
         # Construct the weighted formula
         weighted_expr = " + ".join(
-            [f"({weights[i]} * {letters[i]}@1)" for i in range(len(final_outputs))]
+            [f"({weights[i]} * {letters[i]})" for i in range(len(final_outputs))]
         )
         params["FORMULA"] = (
-            f"Z * ({weighted_expr})"  # Apply the mask (Z) to the weighted sum
+            f"{mask_letter} * ({weighted_expr})"  # Apply the mask (1 based) to the weighted sum
         )
-
+        log_message(
+            f"Weighted formula: {params['FORMULA']}", tag="Geest", level=Qgis.Info
+        )
         # Additional GDAL Raster Calculator parameters
         params["NO_DATA"] = -9999
         params["RTYPE"] = 5  # Float32
@@ -224,12 +307,6 @@ class AggregationWorkflowBase(WorkflowBase):
                 level=Qgis.Critical,
             )
             return None
-
-        log_message(
-            f"Weighted aggregation completed successfully: {aggregation_output}",
-            tag="Geest",
-            level=Qgis.Info,
-        )
 
         # Save the result in attributes for further use
         self.attributes[self.result_file_key] = aggregation_output
