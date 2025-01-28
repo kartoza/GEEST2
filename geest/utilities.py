@@ -232,7 +232,14 @@ def log_message(
 ) -> None:
     """
     Logs a message to both QgsMessageLog and a text file,
-    including the caller's class or module name and line number."""
+    including the caller's class or module name and line number.
+
+    Args:
+        message (str): The message to log.
+        level (int): The logging level (Qgis.Info, Qgis.Warning, Qgis.Critical).
+        tag (str): The tag for the message.
+        force (bool): If True, log the message even if verbose_mode is off.
+    """
     verbose_mode = setting(key="verbose_mode", default=0)
     if not verbose_mode and not force:
         return
@@ -245,8 +252,9 @@ def log_message(
     # Combine caller information with message
     full_message = f"[{caller_name}:{line_number}] {message}"
 
-    # Log to QGIS Message Log
-    QgsMessageLog.logMessage(full_message, tag=tag, level=level)
+    # Log to QGIS Message Log if it is critical or force is true
+    if level == Qgis.Critical or force:
+        QgsMessageLog.logMessage(full_message, tag=tag, level=level)
 
     # Log to the file with appropriate logging level
     if level == Qgis.Info:

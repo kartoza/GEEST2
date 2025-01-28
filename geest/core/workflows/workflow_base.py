@@ -475,8 +475,10 @@ class WorkflowBase(QObject):
         default_raster_to_0 = bool(setting(key="default_raster_to_0", default=0))
         if default_value is None:
             if default_raster_to_0:
+                log_message("Setting default value to 0 for rasterization")
                 default_value = 0
             else:
+                log_message("Setting default value to -9999 for rasterization")
                 default_value = -9999
 
         # Directly use the source of the QgsVectorLayer
@@ -544,17 +546,31 @@ class WorkflowBase(QObject):
         log_message(f"Rasterizing vector layer with index {index}")
         log_message(f"Vector path: {vector_path}")
         log_message(f"Output path: {output_path}")
+
+        # INIT=<value>
+        # Initializes the target raster with the specified value before burning.
+        # For instance, INIT=0 will fill the entire raster with 0 before features are burned.
+
+        # INIT_DEST=VALUE|NO_DATA
+        # Controls how the initialization value (from INIT) is interpreted:
+        # VALUE means fill with that numeric value.
+        # NO_DATA means fill the entire band with the NoData value.
+        if default_value != -9999:
+            init_dest = "VALUE"
+        else:
+            init_dest = "NO_DATA"
         options = [
             f"ATTRIBUTE={value_field}",
             f"INIT={default_value}",
             "ALL_TOUCHED=TRUE",
-            "NODATA=-9999",  # Initialize unassigned pixels to -9999
+            "NODATA=-9999",
+            f"INIT_DEST={init_dest}",
         ]
         gdal.RasterizeLayer(
             raster_ds,
             [1],
             ogr_layer,
-            options,
+            options=options,
         )
         log_message(f"Rasterization complete")
         log_message(options)
