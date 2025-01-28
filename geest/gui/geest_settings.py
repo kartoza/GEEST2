@@ -68,6 +68,9 @@ class GeestSettings(FORM_CLASS, QgsOptionsPageWidget):
         zero_default = bool(setting(key="default_raster_to_0", default=0))
         self.default_raster_to_0.setChecked(zero_default)
 
+        show_layer_on_click = setting(key="show_layer_on_click", default=False)
+        self.show_layer_on_click.setChecked(show_layer_on_click)
+
     def apply(self):
         """Process the animation sequence.
 
@@ -93,6 +96,9 @@ class GeestSettings(FORM_CLASS, QgsOptionsPageWidget):
         set_setting(key="chunk_size", value=self.chunk_size.value())
         set_setting(
             key="default_raster_to_0", value=self.default_raster_to_0.isChecked()
+        )
+        set_setting(
+            key="show_layer_on_click", value=self.show_layer_on_click.isChecked()
         )
 
 
