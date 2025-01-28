@@ -456,7 +456,7 @@ class WorkflowBase(QObject):
         bbox: QgsGeometry,
         index: int,
         value_field: str = "value",
-        default_value: int = -9999,
+        default_value: int = None,
     ) -> str:
         """
         Rasterize the vector layer based on the specified field using GDAL.
@@ -471,6 +471,14 @@ class WorkflowBase(QObject):
         Returns:
             str: The file path to the rasterized output.
         """
+        # Configured in the settings GUI
+        default_raster_to_0 = bool(setting(key="default_raster_to_0", default=0))
+        if default_value is None:
+            if default_raster_to_0:
+                default_value = 0
+            else:
+                default_value = -9999
+
         # Directly use the source of the QgsVectorLayer
         # Check if the input layer is a shapefile or a geopackage
         # Using the qgis vector layer provider
@@ -536,19 +544,20 @@ class WorkflowBase(QObject):
         log_message(f"Rasterizing vector layer with index {index}")
         log_message(f"Vector path: {vector_path}")
         log_message(f"Output path: {output_path}")
+        options = [
+            f"ATTRIBUTE={value_field}",
+            f"INIT={default_value}",
+            "ALL_TOUCHED=TRUE",
+            "NODATA=-9999",  # Initialize unassigned pixels to -9999
+        ]
         gdal.RasterizeLayer(
             raster_ds,
             [1],
             ogr_layer,
-            options=[
-                f"ATTRIBUTE={value_field}",
-                f"INIT={default_value}",
-                "ALL_TOUCHED=TRUE",
-                "NODATA=-9999",  # Initialize unassigned pixels to -9999
-                "INIT=-9999",  # Ensure initialization matches NoData
-            ],
+            options,
         )
         log_message(f"Rasterization complete")
+        log_message(options)
 
         # Close datasets to flush data to disk
         raster_ds = None

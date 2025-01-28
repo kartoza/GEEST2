@@ -162,7 +162,7 @@ def log_layer_count():
 
     # Also write to a log file in the system temp directory
     tmp_dir = tempfile.gettempdir()
-    log_file_path = os.path.join(tmp_dir, "layer_count_log.txt")
+    log_file_path = os.path.join(tmp_dir, "geest_layer_count_log.txt")
     with open(log_file_path, "a") as log_file:
         log_file.write(log_entry)
 
