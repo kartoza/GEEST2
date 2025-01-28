@@ -566,6 +566,7 @@ class WorkflowBase(QObject):
             "NODATA=-9999",
             f"INIT_DEST={init_dest}",
         ]
+        log_message(f"Rasterization options: {options}")
         gdal.RasterizeLayer(
             raster_ds,
             [1],
