@@ -217,11 +217,11 @@ class AcledImpactWorkflow(WorkflowBase):
         log_message(f"Assigning scores to {layer.name()}")
         # Define scoring categories based on event_type
         event_scores = {
-            "Battles": 4,
-            "Explosions/Remote violence": 3,
+            "Battles": 0,
+            "Explosions/Remote violence": 1,
             "Violence against civilians": 2,
-            "Protests": 1,
-            "Riots": 1,
+            "Protests": 4,
+            "Riots": 4,
         }
 
         # Create a new field in the layer for the scores
