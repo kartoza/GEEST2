@@ -180,7 +180,7 @@ class PopulationRasterProcessingTask(QgsTask):
                 "SOURCE_CRS": None,
                 "TARGET_CRS": self.target_crs,
                 "TARGET_EXTENT": f"{bbox.xMinimum()},{bbox.xMaximum()},{bbox.yMinimum()},{bbox.yMaximum()} [{self.target_crs.authid()}]",
-                "NODATA": None,
+                "NODATA": -9999,
                 "ALPHA_BAND": False,
                 "CROP_TO_CUTLINE": False,
                 "KEEP_RESOLUTION": False,

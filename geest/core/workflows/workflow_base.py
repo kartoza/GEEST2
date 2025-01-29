@@ -1,8 +1,9 @@
 import datetime
 import os
-import shutil
+import tempfile
 import traceback
 from abc import ABC, abstractmethod
+from osgeo import gdal, ogr
 from qgis.core import (
     QgsFeedback,
     QgsVectorLayer,
@@ -27,7 +28,7 @@ from geest.core.algorithms import (
     combine_rasters_to_vrt,
 )
 from geest.core.constants import GDAL_OUTPUT_DATA_TYPE
-from geest.utilities import log_message, log_layer_count
+from geest.utilities import log_message, log_layer_count, vector_layer_type
 
 
 class WorkflowBase(QObject):
@@ -308,6 +309,14 @@ class WorkflowBase(QObject):
                     )
 
                 # clip the area by its matching mask layer in study_area geopackage
+                if not raster_output:
+                    log_message(
+                        f"Raster output is None for area {index}. Skipping this area.",
+                        tag="Geest",
+                        level=Qgis.Warning,
+                    )
+                    continue
+
                 masked_layer = self._mask_raster(
                     raster_path=raster_output,
                     area_geometry=clip_area,
@@ -435,7 +444,7 @@ class WorkflowBase(QObject):
         params = {
             "INPUT": aoi,
             "BAND": 1,
-            "FILL_VALUE": 0,
+            "FILL_VALUE": -9999,
             "OUTPUT": reprojected_raster_path,
         }
         processing.run("native:fillnodata", params)
@@ -447,20 +456,13 @@ class WorkflowBase(QObject):
         bbox: QgsGeometry,
         index: int,
         value_field: str = "value",
-        default_value: int = 0,
+        default_value: int = None,
     ) -> str:
         """
-
-        ⭐️🚩⭐️ Warning this is not DRY - almost same function exists in study_area.py
-
-        Rasterize the grid layer based on the 🔴'value'🔴 attribute field.
-
-        Nodata will be set to 255
-
-        On-land pixels will be set to 0 or whatever is specified in the default_value parameter.
+        Rasterize the vector layer based on the specified field using GDAL.
 
         Args:
-            input_layer (QgsVectorLayer): The layer to rasterize.
+            input_layer (QgsVectorLayer): The layer to rasterize, assumed to have a shapefile source.
             bbox (QgsGeometry): The bounding box for the raster extents.
             index (int): The current index used for naming the output raster.
             value_field (str): The field to use for rasterization.
@@ -469,50 +471,116 @@ class WorkflowBase(QObject):
         Returns:
             str: The file path to the rasterized output.
         """
-        if not input_layer or not input_layer.isValid():
-            return False
-        log_message("--- Rasterizing geometry")
-        log_message(f"--- bbox {bbox}")
-        log_message(f"--- index {index}")
+        # Configured in the settings GUI
+        default_raster_to_0 = bool(setting(key="default_raster_to_0", default=0))
+        if default_value is None:
+            if default_raster_to_0:
+                log_message("Setting default value to 0 for rasterization")
+                default_value = 0
+            else:
+                log_message("Setting default value to -9999 for rasterization")
+                default_value = -9999
+
+        # Directly use the source of the QgsVectorLayer
+        # Check if the input layer is a shapefile or a geopackage
+        # Using the qgis vector layer provider
+
+        # Create a GDAL dataset for the vector layer
+        if not input_layer:
+            raise Exception("Rasterize input layer is None")
+
+        vector_path = input_layer.source()
+        layer_type = vector_layer_type(input_layer)
+        if layer_type == "GPKG":
+            log_message(f"Vector layer is a GeoPackage: {vector_path}")
+            layer_path = vector_path.split("|")[0]
+            layer_name = vector_path.split("|")[1].split("=")[1]
+            vector_ds = ogr.Open(layer_path)
+            if vector_ds is None:
+                raise ValueError(f"Failed to open the input vector layer {layer_path}.")
+            ogr_layer = vector_ds.GetLayerByName(layer_name)
+        else:  # SHP
+            vector_ds = ogr.Open(vector_path)
+            if not vector_ds:
+                raise ValueError(f"Failed to open the input vector layer {layer_path}.")
+            ogr_layer = vector_ds.GetLayer()
+
+        # Extract the bounding box as a tuple of coordinates
+        bbox_coords = bbox.boundingBox()
+        min_x, max_x, min_y, max_y = (
+            bbox_coords.xMinimum(),
+            bbox_coords.xMaximum(),
+            bbox_coords.yMinimum(),
+            bbox_coords.yMaximum(),
+        )
+
+        # Compute raster dimensions
+        raster_width = int((max_x - min_x) / self.cell_size_m)
+        raster_height = int((max_y - min_y) / self.cell_size_m)
 
         output_path = os.path.join(
-            self.workflow_directory,
-            f"{self.layer_id}_{index}.tif",
+            self.workflow_directory, f"{self.layer_id}_{index}.tif"
         )
-        if not input_layer.isValid():
-            log_message(f"Layer failed to load! {input_layer}")
-            return
+        raster_driver = gdal.GetDriverByName("GTiff")
+        raster_ds = raster_driver.Create(
+            output_path, raster_width, raster_height, 1, gdal.GDT_Float32
+        )
+        # Set NoData value for the first band
+        raster_band = raster_ds.GetRasterBand(1)
+        raster_band.SetNoDataValue(-9999)
+        # Set the geotransform and projection
+        geotransform = (
+            min_x,
+            self.cell_size_m,
+            0,
+            max_y,
+            0,
+            -self.cell_size_m,
+        )  # (top-left x, x pixel size, x rotation, top-left y, y rotation, -y pixel size)
+        raster_ds.SetGeoTransform(geotransform)
+        spatial_ref = gdal.osr.SpatialReference()
+        spatial_ref.ImportFromEPSG(int(self.target_crs.authid().split(":")[1]))
+        raster_ds.SetProjection(spatial_ref.ExportToWkt())
+
+        # Rasterize the vector layer
+        log_message(f"Rasterizing vector layer with index {index}")
+        log_message(f"Vector path: {vector_path}")
+        log_message(f"Output path: {output_path}")
+
+        # INIT=<value>
+        # Initializes the target raster with the specified value before burning.
+        # For instance, INIT=0 will fill the entire raster with 0 before features are burned.
+
+        # INIT_DEST=VALUE|NO_DATA
+        # Controls how the initialization value (from INIT) is interpreted:
+        # VALUE means fill with that numeric value.
+        # NO_DATA means fill the entire band with the NoData value.
+        if default_value != -9999:
+            init_dest = "VALUE"
         else:
-            log_message(f"Rasterizing {input_layer}")
+            init_dest = "NO_DATA"
+        options = [
+            f"ATTRIBUTE={value_field}",
+            f"INIT={default_value}",
+            "ALL_TOUCHED=TRUE",
+            "NODATA=-9999",
+            f"INIT_DEST={init_dest}",
+        ]
+        log_message(f"Rasterization options: {options}")
+        gdal.RasterizeLayer(
+            raster_ds,
+            [1],
+            ogr_layer,
+            options=options,
+        )
+        log_message(f"Rasterization complete")
+        log_message(options)
 
-        # Ensure resolution parameters are properly formatted as float values
-        x_res = self.cell_size_m  # pixel size in X direction
-        y_res = self.cell_size_m  # pixel size in Y direction
-        bbox = bbox.boundingBox()
-        # Define rasterization parameters for the temporary layer
-        params = {
-            "INPUT": input_layer,
-            "FIELD": f"{value_field}",
-            "BURN": 0,
-            "USE_Z": False,
-            "UNITS": 1,
-            "WIDTH": x_res,
-            "HEIGHT": y_res,
-            "EXTENT": f"{bbox.xMinimum()},{bbox.xMaximum()},{bbox.yMinimum()},{bbox.yMaximum()} [{self.target_crs.authid()}]",
-            "NODATA": 255,
-            "OPTIONS": "",
-            "DATA_TYPE": GDAL_OUTPUT_DATA_TYPE,
-            "INIT": default_value,  # will set all cells to this value if not otherwise set
-            "INVERT": False,
-            "EXTRA": f"-a_srs {self.target_crs.authid()} -at",  # Assign all touched pixels
-            "OUTPUT": output_path,
-        }
+        # Close datasets to flush data to disk
+        raster_ds = None
+        vector_ds = None
 
-        #'OUTPUT':'TEMPORARY_OUTPUT'})
-
-        processing.run("gdal:rasterize", params)
-        log_message(f"Rasterize Parameter: {params}")
-        log_message(f"Rasterize complete for: {output_path}")
+        log_message(f"Rasterize complete")
         log_message(f"Created raster: {output_path}")
         return output_path
 
@@ -520,7 +588,7 @@ class WorkflowBase(QObject):
         self, raster_path: str, area_geometry: QgsGeometry, index: int
     ) -> str:
         """
-        Multiply the raster by the area geometry to mask the raster to the area.
+        Mask the raster to the clip area geometry using GDAL.
 
         Args:
             raster_path (str): The path to the raster file.
@@ -529,53 +597,88 @@ class WorkflowBase(QObject):
 
         Returns:
             str: The path to the masked raster.
+
+        Raises:
+            FileNotFoundError: If the raster file does not exist.
+            RuntimeError: If the masking operation fails.
         """
         if not raster_path:
-            return False
+            raise ValueError("Raster path cannot be empty.")
+
+        if not os.path.exists(raster_path):
+            raise FileNotFoundError(f"Raster file not found at {raster_path}")
+
+        if area_geometry.isEmpty():
+            raise ValueError("Invalid area geometry provided.")
+
         output_name = f"{self.layer_id}_masked_{index}.tif"
         output_path = os.path.join(self.workflow_directory, output_name)
-        log_message(
-            f"Masking raster {raster_path} for area {index} to {output_path}",
-            tag="Geest",
-            level=Qgis.Info,
-        )
-        # verify the raster path exists
-        if not os.path.exists(raster_path):
-            log_message(
-                f"Raster file not found at {raster_path}",
-                tag="Geest",
-                level=Qgis.Warning,
+
+        log_message(f"Preparing to mask raster with index {index}")
+        log_message(f"Raster path: {raster_path}")
+        log_message(f"Output path: {output_path}")
+
+        try:
+            # Create a temporary shapefile for the mask layer
+            mask_layer_path = os.path.join(
+                tempfile.gettempdir(), f"mask_layer_{index}.shp"
             )
-            raise QgsProcessingException(f"Raster file not found at {raster_path}")
-        # Convert the geometry to a memory layer in the self.target_crs
-        log_message(f"Creating mask layer for area from polygon {index}")
-        mask_layer = geometry_to_memory_layer(
-            area_geometry, self.target_crs, f"mask_layer_{index}"
-        )
-        log_message(f"Mask layer created: {mask_layer}")
-        # Clip the raster by the mask layer
-        params = {
-            "INPUT": f"{raster_path}",
-            "MASK": mask_layer,
-            "OUTPUT": f"{output_path}",
-            "SOURCE_CRS": None,
-            "TARGET_CRS": None,
-            "TARGET_EXTENT": None,
-            "NODATA": 255,
-            "ALPHA_BAND": False,
-            "CROP_TO_CUTLINE": True,
-            "KEEP_RESOLUTION": False,
-            "SET_RESOLUTION": False,
-            "X_RESOLUTION": None,
-            "Y_RESOLUTION": None,
-            "MULTITHREADING": False,
-            "OPTIONS": "",
-            "DATA_TYPE": GDAL_OUTPUT_DATA_TYPE,
-            "EXTRA": "",
-        }
-        processing.run("gdal:cliprasterbymasklayer", params)
-        log_message(f"Masked raster created: {output_path}")
-        return output_path
+            driver = ogr.GetDriverByName("ESRI Shapefile")
+            if os.path.exists(mask_layer_path):
+                driver.DeleteDataSource(mask_layer_path)
+            mask_layer = driver.CreateDataSource(mask_layer_path)
+
+            spatial_ref = gdal.osr.SpatialReference()
+            log_message(f"Converting QGIS CRS to OGR SRS: {self.target_crs.authid()}")
+            spatial_ref.ImportFromEPSG(int(self.target_crs.authid().split(":")[1]))
+
+            # Create layer with explicit name 'mask'
+            layer = mask_layer.CreateLayer(
+                "mask", srs=spatial_ref, geom_type=ogr.wkbPolygon
+            )
+            layer_defn = layer.GetLayerDefn()
+
+            # Add geometry to the layer
+            geometry = ogr.CreateGeometryFromWkt(area_geometry.asWkt())
+            feature = ogr.Feature(layer_defn)
+            feature.SetGeometry(geometry)
+            layer.CreateFeature(feature)
+
+            # Ensure the shapefile is flushed and saved
+            feature = None  # Explicitly destroy feature
+            layer = None  # Explicitly destroy layer
+            mask_layer = None  # Save and close the datasource
+            log_message(f"Mask vector layer created at {mask_layer_path}")
+
+            # Clip the raster by the mask
+            gdal.Warp(
+                destNameOrDestDS=output_path,
+                srcDSOrSrcDSTab=raster_path,
+                dstSRS=self.target_crs.authid(),
+                resampleAlg="bilinear",
+                # srcNodata=0,
+                dstNodata=-9999,
+                cutlineDSName=mask_layer_path,
+                cropToCutline=False,
+                multithread=True,
+                format="GTiff",
+            )
+            # gdal.Warp(
+            #     destNameOrDestDS=output_path,
+            #     srcDSOrSrcDSTab=raster_path,
+            #     format="GTiff",
+            #     cutlineDSName=mask_layer_path,
+            #     cutlineLayer="mask",  # Must match the layer name used above
+            #     cropToCutline=True,
+            #     dstNodata=255,
+            # )
+            log_message(f"Masking raster complete")
+            log_message(f"Created masked raster: {output_path}")
+            return output_path
+
+        except Exception as e:
+            log_message(f"Error during raster masking: {str(e)}", level=Qgis.Critical)
+            raise RuntimeError(f"Failed to mask raster: {e}")
 
     def _combine_rasters_to_vrt(self, rasters: list) -> None:
         """

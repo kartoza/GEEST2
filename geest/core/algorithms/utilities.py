@@ -1,5 +1,7 @@
 import os
 import shutil
+import numpy as np
+from osgeo import gdal
 from qgis.core import (
     QgsProcessingException,
     QgsCoordinateReferenceSystem,
@@ -254,3 +256,119 @@ def combine_rasters_to_vrt(
     del vrt_layer
 
     return vrt_filepath
+
+
+# Step 1: Merge layers
+log_message(
+    "Step 1: Merging input layers into a single raster.", tag="Geest", level=Qgis.Info
+)
+
+
+def merge_rasters(input_files, output_file, nodata_value=-9999):
+    """
+    Based heavily off the work of the `gdal_merge.py` script,
+    this function merges a list of raster files into a single. See
+    https://raw.githubusercontent.com/postmates/gdal/refs/heads/master/scripts/gdal_merge.py
+
+
+    Custom raster merge tool replicating `gdal_merge.py` behavior.
+    - Initializes the output raster with NoData.
+    - Copies input raster data into the output raster, with later rasters overwriting earlier ones.
+
+    :param input_files: List of input raster file paths.
+    :param output_file: Path to the output merged raster file.
+    :param nodata_value: NoData value for the output raster.
+    """
+    log_message(f"Merge Rasters Started", tag="Geest", level=Qgis.Info)
+    for raster_path in input_files:
+        log_message(f"Checking raster: {raster_path}", tag="Geest", level=Qgis.Info)
+        if not os.path.exists(raster_path):
+            raise FileNotFoundError(f"Could not open raster file: {raster_path}")
+
+    # Collect raster metadata to compute the union of extents
+    ulx, uly, lrx, lry = float("inf"), float("-inf"), float("-inf"), float("inf")
+    pixel_size_x, pixel_size_y = None, None
+    file_infos = []
+
+    # Process all input files to calculate union extent and pixel sizes
+    for raster_path in input_files:
+        raster = gdal.Open(raster_path)
+        if raster is None:
+            raise FileNotFoundError(f"Could not open raster file: {raster_path}")
+
+        geotransform = raster.GetGeoTransform()
+        x_size, y_size = raster.RasterXSize, raster.RasterYSize
+
+        ulx = min(ulx, geotransform[0])
+        uly = max(uly, geotransform[3])
+        lrx = max(lrx, geotransform[0] + x_size * geotransform[1])
+        lry = min(lry, geotransform[3] + y_size * geotransform[5])
+
+        pixel_size_x = geotransform[1]
+        pixel_size_y = geotransform[5]
+
+        file_infos.append(
+            {
+                "path": raster_path,
+                "geotransform": geotransform,
+                "x_size": x_size,
+                "y_size": y_size,
+            }
+        )
+
+        raster = None  # Close the raster to free resources
+
+    # Calculate output raster size and geotransform
+    cols = int((lrx - ulx) / pixel_size_x + 0.5)
+    rows = int((uly - lry) / abs(pixel_size_y) + 0.5)
+    output_geotransform = [ulx, pixel_size_x, 0, uly, 0, pixel_size_y]
+
+    # Create the output raster
+    driver = gdal.GetDriverByName("GTiff")
+    out_raster = driver.Create(output_file, cols, rows, 1, gdal.GDT_Float32)
+    out_raster.SetGeoTransform(output_geotransform)
+    out_raster.SetProjection(gdal.Open(input_files[0]).GetProjection())
+    out_band = out_raster.GetRasterBand(1)
+    out_band.SetNoDataValue(nodata_value)
+
+    # Initialize the output raster with NoData
+    out_band.Fill(nodata_value)
+
+    # Copy data from input rasters into the output raster
+    for file_info in file_infos:
+        raster = gdal.Open(file_info["path"])
+        band = raster.GetRasterBand(1)
+
+        # Calculate overlap window
+        src_geotransform = file_info["geotransform"]
+        src_ulx, src_uly = src_geotransform[0], src_geotransform[3]
+        src_lrx = src_ulx + file_info["x_size"] * src_geotransform[1]
+        src_lry = src_uly + file_info["y_size"] * src_geotransform[5]
+
+        dst_xoff = int((src_ulx - ulx) / pixel_size_x + 0.5)
+        dst_yoff = int((uly - src_uly) / abs(pixel_size_y) + 0.5)
+        dst_cols = int((src_lrx - src_ulx) / pixel_size_x + 0.5)
+        dst_rows = int((src_uly - src_lry) / abs(pixel_size_y) + 0.5)
+
+        # Read and write data for the overlapping region
+        data = band.ReadAsArray(
+            0,
+            0,
+            file_info["x_size"],
+            file_info["y_size"],
+            buf_xsize=dst_cols,
+            buf_ysize=dst_rows,
+        )
+        out_data = out_band.ReadAsArray(dst_xoff, dst_yoff, dst_cols, dst_rows)
+        mask = data != band.GetNoDataValue()
+
+        # Overwrite NoData values in the output with valid data from the source
+        out_data[mask] = data[mask]
+        out_band.WriteArray(out_data, dst_xoff, dst_yoff)
+
+        raster = None  # Close the raster to free resources
+
+    # Finalize the output raster
+    out_band.FlushCache()
+    out_raster = None
+    log_message(f"Merged raster saved to: {output_file}", tag="Geest", level=Qgis.Info)

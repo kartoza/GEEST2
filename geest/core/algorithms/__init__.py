@@ -14,4 +14,5 @@ from .utilities import (
     geometry_to_memory_layer,
     check_and_reproject_layer,
     combine_rasters_to_vrt,
+    merge_rasters,
 )

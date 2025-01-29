@@ -1,15 +1,19 @@
 import os
+import traceback
+from osgeo import gdal
 from qgis.core import (
     Qgis,
     QgsFeedback,
-    QgsRasterLayer,
     QgsProcessingContext,
     QgsGeometry,
 )
-from qgis.analysis import QgsRasterCalculator, QgsRasterCalculatorEntry
+
+# from qgis.analysis import QgsRasterCalculator, QgsRasterCalculatorEntry
+import processing  # QGIS processing toolbox
 from .workflow_base import WorkflowBase
 from geest.core import JsonTreeItem
 from geest.utilities import log_message
+from geest.core.algorithms import merge_rasters
 
 
 class AggregationWorkflowBase(WorkflowBase):
@@ -40,9 +44,9 @@ class AggregationWorkflowBase(WorkflowBase):
         self.weight_key = None  # This should be set by the child class
         self.aggregation = True
 
-    def aggregate(self, input_files: list, index: int) -> str:
+    def aggregate(self, input_files: dict, index: int) -> str:
         """
-        Perform weighted raster aggregation on the found raster files.
+        Perform weighted raster aggregation on the found raster files using GDAL Raster Calculator.
 
         :param input_files: dict of raster file paths to aggregate and their weights.
         :param index: The index of the area being processed.
@@ -51,101 +55,261 @@ class AggregationWorkflowBase(WorkflowBase):
         """
         if len(input_files) == 0:
             log_message(
-                f"Error: Found no Input files. Cannot proceed with aggregation.",
+                "Error: Found no Input files. Cannot proceed with aggregation.",
                 tag="Geest",
                 level=Qgis.Warning,
             )
             return None
 
-        # Load the layers
-        raster_layers = [
-            QgsRasterLayer(vf, f"raster_{i}") for i, vf in enumerate(input_files.keys())
-        ]
+        # Extract layers and weights
+        raster_layers = list(input_files.keys())
+        weights = list(input_files.values())
 
-        # Ensure all raster layers are valid and print filenames of invalid layers
-        invalid_layers = [
-            layer.source() for layer in raster_layers if not layer.isValid()
-        ]
-        if invalid_layers:
-            log_message(
-                f"Invalid raster layers found: {', '.join(invalid_layers)}",
-                tag="Geest",
-                level=Qgis.Critical,
+        # File paths
+        merged_output = os.path.join(
+            self.workflow_directory, f"{self.id}_merged_{index}.tif"
+        )
+        # Zero mask output is used to mask out the nodata values from the
+        # intermediate outputs without changing the effective value of the masked pixels
+        zero_mask_output_byte = os.path.join(
+            self.workflow_directory, f"{self.id}_zero_mask_byte_{index}.tif"
+        )
+        zero_mask_output = os.path.join(
+            self.workflow_directory, f"{self.id}_zero_mask_{index}.tif"
+        )
+        # Mask of 1 values is used in the final step 4 to
+        # mask out the nodata values from the final output
+        one_mask_output_byte = os.path.join(
+            self.workflow_directory, f"{self.id}_one_mask_byte_{index}.tif"
+        )
+        final_outputs = [
+            os.path.join(
+                self.workflow_directory, f"{self.id}_final_layer_{i}_{index}.tif"
             )
-
-        # Create QgsRasterCalculatorEntries for each raster layer
-        entries = []
-        ref_names = []
-        expression = ""
-        sum_of_weights = 0
-        for i, raster_layer in enumerate(raster_layers):
-            if raster_layer.source() in invalid_layers:
-                continue
-            log_message(
-                f"Adding raster layer {i+1} to the raster calculator. {raster_layer.source()}",
-                tag="Geest",
-                level=Qgis.Info,
-            )
-            entry = QgsRasterCalculatorEntry()
-            ref_name = os.path.basename(raster_layer.source()).split(".")[0]
-            entry.ref = f"{ref_name}_{i+1}@1"  # Reference the first band
-            # entry.ref = f"layer_{i+1}@1"  # layer_1@1, layer_2@1, etc.
-            entry.raster = raster_layer
-            entry.bandNumber = 1
-            entries.append(entry)
-            ref_names.append(f"{ref_name}_{i+1}")
-            # input_files[raster_layer.source() returns the weight for the given layer
-            weight = input_files[raster_layer.source()]
-            if i == 0:
-                expression = f"({weight} * {ref_names[i]}@1)"
-            else:
-                expression += f"+ ({weight} * {ref_names[i]}@1)"
-            sum_of_weights += weight
-
-        # I believe these are wrong and should be removed since the total weight
-        # of the aggregate layers should already be 1.0 - Tim
-        # Number of raster layers
-        # layer_count = len(input_files) - len(invalid_layers)
-
-        # Wrap the weighted sum and divide by the sum of weights
-        # expression = f"({expression}) / {layer_count}"
-
+            for i in range(len(raster_layers))
+        ]
         aggregation_output = os.path.join(
             self.workflow_directory, f"{self.id}_aggregated_{index}.tif"
         )
 
+        # Step 1: Merge layers using custom logic
         log_message(
-            f"Aggregating {len(input_files)} raster layers to {aggregation_output}",
+            "Step 1: Merging input layers into a single raster.",
             tag="Geest",
             level=Qgis.Info,
         )
-        log_message(f"Aggregation Expression: {expression}")
-        # Set up the raster calculator
-        calc = QgsRasterCalculator(
-            expression,
-            aggregation_output,
-            "GTiff",  # Output format
-            raster_layers[0].extent(),  # Assuming all layers have the same extent
-            raster_layers[0].width(),
-            raster_layers[0].height(),
-            entries,
-        )
 
-        # Run the calculation
-        result = calc.processCalculation()
-        log_message(f"Calculator errors: {calc.lastError()}")
-        if result != 0:
+        # Merge the input layers
+        try:
+            merge_rasters(raster_layers, merged_output)
             log_message(
-                "Raster aggregation completed successfully.",
+                f"Raster layers merged successfully: {merged_output}",
                 tag="Geest",
                 level=Qgis.Info,
             )
+        except Exception as e:
+            log_message(
+                f"Error during merging: {str(e)}", tag="Geest", level=Qgis.Critical
+            )
+            log_message(traceback.format_exc(), tag="Geest", level=Qgis.Critical)
             return None
 
-        # Write the output path to the attributes
-        # That will get passed back to the json model
-        self.attributes[self.result_file_key] = aggregation_output
+        # Step 2: Create masks
+        log_message(
+            "Step 2: Creating a one based and zero based masks from the merged raster.",
+            tag="Geest",
+            level=Qgis.Info,
+        )
+        try:
 
+            params = {
+                "INPUT_A": merged_output,
+                "BAND_A": 1,
+                "FORMULA": "A<0",  # set all the non nodata values to 0
+                "NO_DATA": 255,
+                "EXTENT_OPT": 0,
+                "PROJWIN": None,
+                "RTYPE": 0,
+                "OPTIONS": "",
+                "EXTRA": "",
+                "OUTPUT": zero_mask_output_byte,
+            }
+            processing.run("gdal:rastercalculator", params)
+            params = {
+                "INPUT_A": merged_output,
+                "BAND_A": 1,
+                "FORMULA": "A>=0",  # set all the non nodata values to 1 <---- NOTE: This is the only change
+                "NO_DATA": 255,
+                "EXTENT_OPT": 0,
+                "PROJWIN": None,
+                "RTYPE": 0,
+                "OPTIONS": "",
+                "EXTRA": "",
+                "OUTPUT": one_mask_output_byte,
+            }
+            processing.run("gdal:rastercalculator", params)
+            log_message(
+                f"Zero based Byte Mask raster saved at: {zero_mask_output_byte}",
+                tag="Geest",
+                level=Qgis.Info,
+            )
+            log_message(
+                f"One based Byte Mask raster saved at: {one_mask_output_byte}",
+                tag="Geest",
+                level=Qgis.Info,
+            )
+        except Exception as e:
+            log_message(
+                f"Error creating binary mask: {str(e)}",
+                tag="Geest",
+                level=Qgis.Critical,
+            )
+            return None
+        # Convert the mask back to float32 for further processing
+        try:
+            gdal.Translate(
+                zero_mask_output,
+                zero_mask_output_byte,
+                format="GTiff",  # Output format
+                outputType=gdal.GDT_Float32,  # Change to Float32
+                noData=-9999,  # Set output nodata value to -9999
+                scaleParams=[
+                    [0, 254, 0, 254]
+                ],  # Preserve original values, excluding nodata
+            )
+
+        except Exception as e:
+            log_message(
+                f"Error converting mask to float32: {str(e)}",
+                tag="Geest",
+                level=Qgis.Critical,
+            )
+            raise e
+        log_message(
+            f"Float32 Mask raster saved at: {zero_mask_output}",
+            tag="Geest",
+            level=Qgis.Info,
+        )
+
+        # Step 3: Merge each layer with the mask
+        log_message(
+            "Step 3: Merging each input layer with the mask.",
+            tag="Geest",
+            level=Qgis.Info,
+        )
+        for raster, final_output in zip(raster_layers, final_outputs):
+
+            # layers_to_merge = [mask_output, raster]
+            try:
+                log_message(
+                    f"Processing raster: {raster}", tag="Geest", level=Qgis.Info
+                )
+                log_message(
+                    f"Merging it onto mask: {zero_mask_output}",
+                    tag="Geest",
+                    level=Qgis.Info,
+                )
+                params = {
+                    "INPUT": [
+                        zero_mask_output,  # important, the mask should be the first raster
+                        raster,
+                    ],
+                    "PCT": False,
+                    "SEPARATE": False,
+                    "NODATA_INPUT": None,
+                    "NODATA_OUTPUT": -9999,
+                    "OPTIONS": "",
+                    "EXTRA": "",
+                    "DATA_TYPE": 5,  # Float32
+                    "OUTPUT": final_output,
+                }
+                processing.run("gdal:merge", params)
+
+                # merge_rasters(layers_to_merge, merged_output)
+                log_message(
+                    f"Raster layers merged successfully: {final_output}",
+                    tag="Geest",
+                    level=Qgis.Info,
+                )
+            except Exception as e:
+                log_message(
+                    f"Error during merging: {str(e)}", tag="Geest", level=Qgis.Critical
+                )
+                log_message(traceback.format_exc(), tag="Geest", level=Qgis.Critical)
+                return None
+
+        # Step 4: Weighted combination
+        log_message(
+            "Step 4: Performing weighted combination of masked layers.",
+            tag="Geest",
+            level=Qgis.Info,
+        )
+
+        letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"  # Sequential alphabet for layers
+        params = {}
+
+        # Assign letters to each layer and build parameters
+        for i, final_output in enumerate(final_outputs):
+            if i >= len(letters):
+                log_message(
+                    "Too many layers for sequential alphabet assignment.",
+                    tag="Geest",
+                    level=Qgis.Critical,
+                )
+                return None
+            letter = letters[i]
+            params[f"INPUT_{letter}"] = final_output
+            params[f"BAND_{letter}"] = 1
+        # -------------------------------- works to here --------------------------------
+
+        # Always assign Z to the mask layer
+        mask_letter = letters[len(final_outputs)]
+        params[f"INPUT_{mask_letter}"] = one_mask_output_byte
+        params[f"BAND_{mask_letter}"] = 1
+
+        # Construct the weighted formula
+        weighted_expr = " + ".join(
+            [f"({weights[i]} * {letters[i]})" for i in range(len(final_outputs))]
+        )
+        params["FORMULA"] = (
+            f"{mask_letter} * ({weighted_expr})"  # Apply the mask (1 based) to the weighted sum
+        )
+        log_message(
+            f"Weighted formula: {params['FORMULA']}", tag="Geest", level=Qgis.Info
+        )
+        # Additional GDAL Raster Calculator parameters
+        params["NO_DATA"] = -9999
+        params["RTYPE"] = 5  # Float32
+        params["OUTPUT"] = aggregation_output
+
+        try:
+            processing.run("gdal:rastercalculator", params)
+        except Exception as e:
+            log_message(
+                f"Error during raster aggregation: {str(e)}",
+                tag="Geest",
+                level=Qgis.Critical,
+            )
+            return None
+
+        log_message(
+            f"Weighted aggregation completed successfully: {aggregation_output}",
+            tag="Geest",
+            level=Qgis.Info,
+        )
+
+        try:
+            processing.run("gdal:rastercalculator", params)
+        except Exception as e:
+            log_message(
+                f"Error during raster aggregation: {str(e)}",
+                tag="Geest",
+                level=Qgis.Critical,
+            )
+            return None
+
+        # Save the result in attributes for further use
+        self.attributes[self.result_file_key] = aggregation_output
         return aggregation_output
 
     def get_raster_dict(self, index) -> list:
