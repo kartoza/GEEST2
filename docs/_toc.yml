@@ -2,25 +2,9 @@ format: jb-book
 root: README
 
 parts:
-  - caption:
-    numbered: false
+  - caption: GEEST
     chapters:
-      - file: docs/about
-      - file: docs/download
       - file: docs/user_guide
-        sections:
-        - file: docs/userguide/install
-        - file: docs/userguide/navigation
-          sections:
-          - file: docs/userguide/contextual
-          - file: docs/userguide/accessibility
-          - file: docs/userguide/placecharacterization
-          - file: docs/userguide/insights
-        - file: docs/userguide/datacollection
-      - file: docs/background
-      - file: docs/acknowledgements
-      - file: docs/training
-      - file: docs/media
   - caption: Additional Resources
     chapters:
       - url: https://datacatalog.worldbank.org/search/collections/genderspatial
@@ -31,7 +15,3 @@ parts:
         title: QGIS
       - url: https://openrouteservice.org/
         title: Open Route Service
-  - caption: License & Citation
-    chapters:
-      - file: docs/license
-      - file: docs/citation
