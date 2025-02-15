@@ -16,8 +16,6 @@ Place Characterization factors refer to the following indicators:
 - **Environmental Hazards:** characterizes areas based on their vulnerability to natural disasters.
 - **Water sanitation:** assesses the availability and accessibility of clean water and sanitation facilities.
 
-The default <a href="#footnote1" id="ref1">thresholds<sup>1</sup></a> are listed in the footnote.
-
 For certain factors, **multiple data input options** are available depending on the data's format and availability.
 
 ### Input Place Characterization factors
@@ -45,6 +43,16 @@ For certain factors, **multiple data input options** are available depending on 
     title="Click to enlarge" 
     onclick="window.open(this.src, '_blank')">
 </p>
+
+<strong>Active transport</strong> factor is calculated based on the four subfactors averaged across the raster cells:
+
+| Subfactor               | Score 0          | Score 1               | Score 2                 | Score 3                 | Score 4                 | Score 5                 |
+|----------------------|------------------|-----------------------|-------------------------|-------------------------|-------------------------|-------------------------|
+| **Street Crossings** | None             | N/A                   | N/A                     | 1 crossing              | N/A                     | 2+ crossings           |
+| **Cycle Paths**      | None             | N/A                   | N/A                     | 1 cycle path            | N/A                     | 2+ paths               |
+| **Footpaths**        | None             | N/A                   | N/A                     | 1 path                  | N/A                     | 2+ paths               |
+| **Block Sizes**      | None             | >1 km                 | 751m - 1 km             | 501m - 750m             | 251m - 500m             | <250m                  |
+
 
 **Process Active Transport factors**
 
@@ -96,7 +104,7 @@ The successful completion of the process is indicated by the green checkmark wid
     onclick="window.open(this.src, '_blank')">
 </p>
 
-> - 3️⃣ Using **Nighttime Lights data** as input; VIIRS Nighttime Lights raster may be used as proxy data for streetlight locations; select the layer already loaded in the QGIS Layer Panel from the dropdown menu or manually enter the file path for the (**raster data**) corresponding to the streetlights data by clicking the three-dot button; this layer will be used for processing:
+> - 3️⃣ Using **Nighttime Lights data** as input; VIIRS Nighttime Lights raster may be used as proxy data for presence of area illumination at night time; select the layer already loaded in the QGIS Layer Panel from the dropdown menu or manually enter the file path for the (**raster data**) corresponding to NTL by clicking the three-dot button; this layer will be used for processing:
 <p align="center">
 <img 
     src="https://raw.githubusercontent.com/worldbank/GEEST/main/docs/images/new%20images/Safety_NTL.jpg" 
@@ -118,6 +126,14 @@ The successful completion of the process is indicated by the green checkmark wid
 
 > - 🚫 **Exclude Unused Factors (optional)**: If this factor is not intended to be included in the process, uncheck the **Use** button associated with it.
 > - ✅ **Finalize**: Once all settings are configured, click OK to confirm and proceed to the next step.
+
+<strong>Safety</strong> is calculated by generating 20-meter buffers around streetlights using the default thresholds:
+
+| Factor   | Score 0                | Score 1                 | Score 2                 | Score 3                 | Score 4                 | Score 5                 |
+|----------|------------------------|-------------------------|-------------------------|-------------------------|-------------------------|-------------------------|
+| **Safety** | No overlap            | 1-19% intersection      | 20-39% intersection     | 40-59% intersection     | 60-79% intersection     | 80-100% intersection    |
+
+<strong>Note:</strong> Use nighttime light data only if streetlight data is unavailable.
 
 **Process Safety factor**
 
@@ -159,7 +175,7 @@ The successful completion of the process is indicated by the green checkmark wid
     onclick="window.open(this.src, '_blank')">
 </p>
 
-> - 2️⃣ Using **ACLED data** as input; select ACLED data in CSV format representing fragility, conflict, and violence events; a buffer is required to estimate the spatial impact of these events, with a default radius of 5000m; if the specific impact radius of an event is known, it should be applied instead; a pop-up will appear to validate the CSV format.
+> - 2️⃣ Using **ACLED data** as input; select ACLED data in CSV format representing fragility, conflict, and violence events; this indicator is structured by assigning scores to rasters based on their overlap with buffers indicating different types of events. Using point locations of FCV events, generate circular buffers with a default radius of 5 km to estimate the spatial impact of these events. If the impact radius of an event is known, it should be used instead; a pop-up will appear to validate the CSV format.
 
 <p align="center">
 <img 
@@ -172,6 +188,13 @@ The successful completion of the process is indicated by the green checkmark wid
 
 > - 🚫 **Exclude Unused Factor (optional)**: If this factor is not intended to be included in the process, uncheck the **Use** button associated with it.
 > - ✅ **Finalize**: Once all settings are configured, click OK to confirm and proceed to the next step.
+
+<strong>FCV</strong> is structured by assigning scores to raster cells based on their overlap with buffers representing different types of events. Using point locations of FCV (Fragility, Conflict, and Violence) events, create circular buffers with a radius of 5 km to estimate the spatial impact. If a specific event's impact radius is known, it should be applied instead. Raster cells intersecting with these default buffers are scored as follows:
+
+| Factor   | Score 0              | Score 1                   | Score 2                         | Score 3             | Score 4                     | Score 5                      |
+|----------|----------------------|---------------------------|---------------------------------|---------------------|-----------------------------|------------------------------|
+| **FCV**  | battles and explosions | explosions and remote violence | violence against civilians |     not applicable               | protests and riots | no overlap with any event   |
+
 
 **Process FCV factor**
 
@@ -227,6 +250,8 @@ The successful completion of the process is indicated by the green checkmark wid
 > - 🚫 **Exclude Unused Factor (optional)**: If this factor is not intended to be included in the process, uncheck the **Use** button associated with it.
 > - ✅ **Finalize**: Once all settings are configured, click OK to confirm and proceed to the next step.
 
+<strong>Education</strong> reclassifies the input data to a standardized scale from 0 to 5 using a linear scaling process. In this scale, a <em>score of 5</em> represents areas where all women have a university degree, while a <em>score of 0</em> represents areas where no women have a university degree.
+
 **Process Education factor**
 
 Back in the Data Processing Interface:
@@ -281,6 +306,8 @@ The successful completion of the process is indicated by the green checkmark wid
 > - 🚫 **Exclude Unused Factor (optional)**: If this factor is not intended to be included in the process, uncheck the **Use** button associated with it.
 > - ✅ **Finalize**: Once all settings are configured, click OK to confirm and proceed to the next step.
 
+<strong>Digital Inclusion</strong> reclassifies input data to a standardized scale of 0 to 5 using a linear scaling process, where <em>5</em> represents areas where 100% of households have internet access, and <em>0</em> represents areas where no households have internet access.
+
 **Process Digital Inclusion factor**
 
 Back in the Data Processing Interface:
@@ -311,7 +338,7 @@ This factor is composed, by default, of five subfactors representing different t
 
 If data for one or more hazard types is not available, these subfactors can be excluded from the processing. In such cases, the tool will automatically adjust the weights of the remaining subfactors to ensure accurate aggregation.
 
-The thresholds for defining hazard levels are based on a predefined scoring list (**provided in the footnote**). The input data relies on globally available open data sources and is reclassified for use within the tool. However, if more precise and localized data is available, users are encouraged to incorporate it into the processing. In doing so, users should align the data with the thresholds provided to maintain consistency and reliability.
+The thresholds for defining hazard levels are based on a predefined scoring list. The input data relies on globally available open data sources and is reclassified for use within the tool. However, if more precise and localized data is available, users are encouraged to incorporate it into the processing. In doing so, users should align the data with the thresholds provided to maintain consistency and reliability.
 </p>
 
 **Locate Environmental Hazards Section**
@@ -331,6 +358,17 @@ The thresholds for defining hazard levels are based on a predefined scoring list
     title="Click to enlarge" 
     onclick="window.open(this.src, '_blank')">
 </p>
+
+<strong>Environmental Hazards</strong> reclassifies input data to a standardized scale of 0 to 5 using a linear scaling process, where <em>5</em> represents areas with no environmental hazards and <em>0</em> represents areas with the highest level of hazard.
+
+| Factor                                   | Class 0            | Class 1              | Class 2              | Class 3              | Class 4              | Class 5              |
+|------------------------------------------|--------------------|----------------------|----------------------|----------------------|----------------------|----------------------|
+| **Number of Fires per km²**              | >8                 | 5–8                  | 2–5                  | 1–2                  | 0–1                  | 0 or No Data         |
+| **Floods Data**                          | 720–900 cm         | 540–720 cm           | 360–540 cm           | 180–360 cm           | <180 cm              | No Data or 0         |
+| **Landslide Data**                       | Severe             | High-Moderate2 (4)   | Moderate (3)         | Low-Moderate1 (2)    | Slight (1)           | No Data or 0         |
+| **Tropical Cyclone Frequency (100 Years)** | >100 events        | 75–100 events        | 50–75 events         | 25–50 events         | <25 events           | No Data or 0         |
+| **Drought Data**                         | 4–5                | 3–4                  | 2–3                  | 1–2                  | 0–1                  | No Data or 0         |
+
 
 **Process Environmental Hazards factors**
 
@@ -372,6 +410,12 @@ The successful completion of the process is indicated by the green checkmark wid
     title="Click to enlarge" 
     onclick="window.open(this.src, '_blank')">
 </p>
+
+<strong>Water Sanitation</strong> is assessed based on the presence of water and sanitation facilities within a raster cell, applying a default 1000m buffer. The scoring is as follows:
+
+| Factor                  | Score 0                   | Score 1 | Score 2 | Score 3                     | Score 4 | Score 5                        |
+|-------------------------|---------------------------|---------|---------|-----------------------------|---------|--------------------------------|
+| **Water Sanitation**    | No water points           | N/A     | N/A     | 1 water point               | N/A     | 2 or more water points         |
 
 **Process Water sanitation factor**
 
@@ -432,8 +476,6 @@ After completing the process, the outputs are automatically added to the Layer P
 
 The outputs consist of all factors and subfactors, as well as the aggregation of these into the final Place Characterization output. All scores are assessed on a scale from 0 to 5, categorized as follows: ≤ 0.5 (Not Enabling) | 0.5–1.5 (Very Low Enablement) | 1.5–2.5 (Low Enablement) | 2.5–3.5 (Moderately Enabling) | 3.5–4.5 (Enabling) | 4.5–5.0 (Highly Enabling).
 
-<span style="color: red;">[Not working - Need to be amended]</span>
-
 The outputs are stored under the Place Characterization folder within the project folder created during the setup phase as raster files. These files can be shared and further utilized for various purposes, such as visualization in QGIS or other GIS software, integration into reports, overlaying with other spatial datasets, or performing advanced geospatial analyses, such as identifying priority areas or conducting trend analysis based on the scores.
 
 If the results do not immediately appear in the Layer Panel after processing the Place Characterization Dimension, you can resolve this by either adding them manually from the folder path or by right-clicking on the Place Characterization Dimension and selecting **Add to map** from the context menu:
@@ -466,50 +508,3 @@ If the results do not immediately appear in the Layer Panel after processing the
 - **Input Accuracy**: Ensure all input datasets are carefully entered/selected and correspond to the correct factors and/or subfactors. Incorrect data will impact the outputs and subsequent analysis.
 
 - **Weight Adjustment**: Assign weights thoughtfully to reflect the importance of each factor in the overall analysis. After making changes, always balance the weights to ensure they sum up correctly.
-  
-<small>
-    <a id="footnote1" href="#ref1">1</a>: <span style="color: #505050;"><strong>Default thresholds</strong> </span>
- <br>
- <span style="color: #505050;">
- <strong>Active transport</strong> factor is calculated based on four factors averaged across the raster cells:
-    <br>
-    <em>Street Crossings scores</em>: (score 0 = none, score 3 = 1 crossing, score 5 = 2+ crossings)<br>
-    <em>Cycle Paths scores</em>: (score 0 = none, score 3 = 1 cycle path, score 5 = 2+ paths)<br>
-    <em>Footpaths scores</em>: (score 0 = none, score 3 = 1 path, score 5 = 2+ paths)<br>
-    <em>Block Sizes scores</em>: (score 0 = none, score 1 = >1 km, score 2 = 751m-1 km, score 3 = 501m-750m, score 4 = 251m-500m, score 5 = <250m)<br>
-    <br>
-    <strong>Safety</strong> is calculated by generating 20-meter buffers around streetlights. Raster cells where 80-100% of their area intersects with these buffers are assigned a <em>score of 5</em>. Cells with 60-79% intersection receive a <em>score of 4</em>, 40-59% a <em>score of 3</em>, 20-39% a <em>score of 2</em>, and 1-19% a <em>score of 1</em>. Cells with no overlap are <em>scored as 0</em>. <strong>Note:</strong> Use nighttime light data only if streetlight data is unavailable.
-    <br><br>
-    <strong>FCV</strong> is structured by assigning scores to raster cells based on their overlap with buffers representing different types of events. Using point locations of FCV (Fragility, Conflict, and Violence) events, create circular buffers with a radius of 5 km to estimate the spatial impact. If a specific event's impact radius is known, it should be applied instead. Raster cells intersecting with these buffers are scored as follows:
-    <ul>
-        <li>Rasters overlapping with buffers for battles and explosions: <em>score 0</em></li>
-        <li>Rasters overlapping with buffers for explosions and remote violence: <em>score 1</em></li>
-        <li>Rasters overlapping with buffers for violence against civilians: <em>score 2</em></li>
-        <li>Rasters overlapping with buffers for protests and riots: <em>score 4</em></li>
-        <li>Areas with no overlap with any event: <em>score 5</em></li>
-    </ul>
-    <br>
-    <strong>Education</strong> reclassifies the input data to a standardized scale from 0 to 5 using a linear scaling process. In this scale, a <em>score of 5</em> represents areas where all women have a university degree, while a <em>score of 0</em> represents areas where no women have a university degree.
-    <br><br>
-    <strong>Digital Inclusion</strong> reclassifies input data to a standardized scale of 0 to 5 using a linear scaling process, where <em>5</em> represents areas where 100% of households have internet access, and <em>0</em> represents areas where no households have internet access.
-    <br><br>
-    <strong>Environmental Hazards</strong> reclassifies input data to a standardized scale of 0 to 5 using a linear scaling process, where <em>5</em> represents areas with no environmental hazards and <em>0</em> represents areas with the highest level of hazard.
-<br><br>
-<em>Number of Fires per km²</em> is classified into GEEST classes as follows: 0 or No Data: <em>class 5</em> | 0 to 1: <em>class 4</em> | 1 to 2: <em>class 3</em> | 2 to 5: <em>class 2</em> | 5 to 8: <em>class 1</em> | Greater than 8: <em>class 0</em>
-<br>
-<em>Floods data</em> is classified into GEEST classes as follows: No Data or 0: <em>class 5</em> | Less than 180 cm: <em>class 4</em> | 180–360 cm: <em>class 3</em> | 360–540 cm: <em>class 2</em> | 540–720 cm: <em>class 1</em> | 720–900 cm: <em>class 0</em>
-<br>
-<em>Landslide data</em> is classified into GEEST classes as follows: No Data or 0: <em>class 5</em> | Slight (1): <em>class 4</em> | Low Moderate1 (2): <em>class 3</em> | Moderate (3): <em>class 2</em> | High-Moderate2 (4): <em>class 1</em> | Severe (5): <em>class 0</em>
-<br>
-<em>Tropical Cyclone frequency per 100 years</em> is classified into GEEST classes as follows: No Data or 0: <em>class 5</em> | Less than 25 events: <em>class 4</em> | 25–50 events: <em>class 3</em> | 50–75 events: <em>class 2</em> | 75–100 events: <em>class 1</em> | More than 100 events: <em>class 0</em>
-<br>     
-<em>Drought data</em> is classified into GEEST classes as follows: No Data or 0: <em>class 5</em> | 0–1: <em>class 4</em> | 1–2: <em>class 3</em> | 2–3: <em>class 2</em> | 3–4: <em>class 1</em> | 4–5: <em>class 0</em>
-    <br><br>
-    <strong>Water Sanitation</strong> is assessed based on the presence of water and sanitation facilities within a raster cell, applying a default 1000m buffer. The scoring is as follows:
-    <ul>
-        <li>Raster cell with no water points: <em>score 0</em></li>
-        <li>Raster cell with 1 water point: <em>score 3</em></li>
-        <li>Raster cell with 2 or more water points: <em>score 5</em></li>
-    </ul>
-     </span>
-</small>

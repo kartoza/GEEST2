@@ -16,7 +16,7 @@ This tool evaluates how easily women can access essential services and amenities
 
 **Travel mode**: The user can select walking or driving as a travel mode, and it is recommended that the same travel mode should be selected for all accessibility factors. The default travel mode is walking due to its inclusive nature.
 
-**Measurement**: The default measurement for travel is distance in meters, which is most appropriate for walking. These <a href="#footnote1" id="ref1">thresholds<sup>1</sup></a> are based on evidence from the literature at the factor level and are designed to provide consistency across analyses. If driving is selected as a travel mode, time in minutes is a more appropriate measurement.
+**Measurement**: The default measurement for travel is distance in meters, which is most appropriate for walking. These thresholds are based on evidence from the literature at the factor level and are designed to provide consistency across analyses. If driving is selected as a travel mode, time in minutes is a more appropriate measurement.
 
 ---
 
@@ -51,6 +51,40 @@ This tool evaluates how easily women can access essential services and amenities
     onclick="window.open(this.src, '_blank')">
 </p>
 
+<strong>Default</strong> Women's Travel Patterns thresholds:
+
+<table style="width:auto; border:1px solid black; border-collapse:collapse; margin-left:0; font-size:12px;">
+  <tr style="border:1px solid black;">
+    <th style="border:1px solid black; width:250px;">Distance to Facilities (meters)</th>
+    <th style="border:1px solid black; width:80px; text-align:center;">Score</th>
+  </tr>
+  <tr style="border:1px solid black;">
+    <td style="border:1px solid black;">0 - 400</td>
+    <td style="border:1px solid black; text-align:center;">5</td>
+  </tr>
+  <tr style="border:1px solid black;">
+    <td style="border:1px solid black;">401 - 800</td>
+    <td style="border:1px solid black; text-align:center;">4</td>
+  </tr>
+  <tr style="border:1px solid black;">
+    <td style="border:1px solid black;">801 - 1,200</td>
+    <td style="border:1px solid black; text-align:center;">3</td>
+  </tr>
+  <tr style="border:1px solid black;">
+    <td style="border:1px solid black;">1,201 - 1,500</td>
+    <td style="border:1px solid black; text-align:center;">2</td>
+  </tr>
+  <tr style="border:1px solid black;">
+    <td style="border:1px solid black;">1,501 - 2,000</td>
+    <td style="border:1px solid black; text-align:center;">1</td>
+  </tr>
+  <tr style="border:1px solid black;">
+    <td style="border:1px solid black;">Over 2,000</td>
+    <td style="border:1px solid black; text-align:center;">0</td>
+  </tr>
+</table>
+
+<br>
 
 **Process Women's Travel Patterns factors**
 
@@ -104,6 +138,41 @@ The successful completion of the process is indicated by the green checkmark wid
     onclick="window.open(this.src, '_blank')">
 </p>
 
+<strong>Default</strong> Access to Public Transport thresholds:
+
+<table style="width:auto; border:1px solid black; border-collapse:collapse; margin-left:0; font-size:12px;">
+  <tr style="border:1px solid black;">
+    <th style="border:1px solid black; width:250px;">Distance to Public Transport stops (meters)</th>
+    <th style="border:1px solid black; width:80px; text-align:center;">Score</th>
+  </tr>
+  <tr style="border:1px solid black;">
+    <td style="border:1px solid black;">0 - 250</td>
+    <td style="border:1px solid black; text-align:center;">5</td>
+  </tr>
+  <tr style="border:1px solid black;">
+    <td style="border:1px solid black;">251 - 500</td>
+    <td style="border:1px solid black; text-align:center;">4</td>
+  </tr>
+  <tr style="border:1px solid black;">
+    <td style="border:1px solid black;">501 - 750</td>
+    <td style="border:1px solid black; text-align:center;">3</td>
+  </tr>
+  <tr style="border:1px solid black;">
+    <td style="border:1px solid black;">751 - 1,000</td>
+    <td style="border:1px solid black; text-align:center;">2</td>
+  </tr>
+  <tr style="border:1px solid black;">
+    <td style="border:1px solid black;">1,001 - 1,250</td>
+    <td style="border:1px solid black; text-align:center;">1</td>
+  </tr>
+  <tr style="border:1px solid black;">
+    <td style="border:1px solid black;">Over 1,250</td>
+    <td style="border:1px solid black; text-align:center;">0</td>
+  </tr>
+</table>
+
+<br>
+
 **Process Access to Public Transport factor**
 
 Back in the Data Processing Interface:
@@ -148,6 +217,41 @@ The process should be successfully completed and indicated by a green checkmark 
     onclick="window.open(this.src, '_blank')">
 </p>
 
+<strong>Default</strong> Access to Health Facilities thresholds:
+
+<table style="width:auto; border:1px solid black; border-collapse:collapse; margin-left:0; font-size:12px;">
+  <tr style="border:1px solid black;">
+    <th style="border:1px solid black; width:250px;">Distance to Health Facilities (meters)</th>
+    <th style="border:1px solid black; width:80px; text-align:center;">Score</th>
+  </tr>
+  <tr style="border:1px solid black;">
+    <td style="border:1px solid black;">0 - 2,000</td>
+    <td style="border:1px solid black; text-align:center;">5</td>
+  </tr>
+  <tr style="border:1px solid black;">
+    <td style="border:1px solid black;">2,001 - 4,000</td>
+    <td style="border:1px solid black; text-align:center;">4</td>
+  </tr>
+  <tr style="border:1px solid black;">
+    <td style="border:1px solid black;">4,001 - 6,000</td>
+    <td style="border:1px solid black; text-align:center;">3</td>
+  </tr>
+  <tr style="border:1px solid black;">
+    <td style="border:1px solid black;">6,001 - 8,000</td>
+    <td style="border:1px solid black; text-align:center;">2</td>
+  </tr>
+  <tr style="border:1px solid black;">
+    <td style="border:1px solid black;">8,001 - 10,000</td>
+    <td style="border:1px solid black; text-align:center;">1</td>
+  </tr>
+  <tr style="border:1px solid black;">
+    <td style="border:1px solid black;">Over 10,000</td>
+    <td style="border:1px solid black; text-align:center;">0</td>
+  </tr>
+</table>
+
+<br>
+
 **Process Access to Health Facilities factor**
 
 Back in the Data Processing Interface:
@@ -181,6 +285,41 @@ The process should be successfully completed and indicated by a green checkmark 
     onclick="window.open(this.src, '_blank')">
 </p>
 
+<strong>Default</strong> Access to Education and Training Facilities thresholds:
+
+<table style="width:auto; border:1px solid black; border-collapse:collapse; margin-left:0; font-size:12px;">
+  <tr style="border:1px solid black;">
+    <th style="border:1px solid black; width:250px;">Distance to Facilities (meters)</th>
+    <th style="border:1px solid black; width:80px; text-align:center;">Score</th>
+  </tr>
+  <tr style="border:1px solid black;">
+    <td style="border:1px solid black;">0 - 2,000</td>
+    <td style="border:1px solid black; text-align:center;">5</td>
+  </tr>
+  <tr style="border:1px solid black;">
+    <td style="border:1px solid black;">2,001 - 4,000</td>
+    <td style="border:1px solid black; text-align:center;">4</td>
+  </tr>
+  <tr style="border:1px solid black;">
+    <td style="border:1px solid black;">4,001 - 6,000</td>
+    <td style="border:1px solid black; text-align:center;">3</td>
+  </tr>
+  <tr style="border:1px solid black;">
+    <td style="border:1px solid black;">6,001 - 8,000</td>
+    <td style="border:1px solid black; text-align:center;">2</td>
+  </tr>
+  <tr style="border:1px solid black;">
+    <td style="border:1px solid black;">8,001 - 10,000</td>
+    <td style="border:1px solid black; text-align:center;">1</td>
+  </tr>
+  <tr style="border:1px solid black;">
+    <td style="border:1px solid black;">Over 10,000</td>
+    <td style="border:1px solid black; text-align:center;">0</td>
+  </tr>
+</table>
+
+<br>
+
 **Process Access to Education and Training Facilities factor**
 
 Back in the Data Processing Interface:
@@ -213,6 +352,41 @@ The process should be successfully completed and indicated by a green checkmark 
     title="Click to enlarge" 
     onclick="window.open(this.src, '_blank')">
 </p>
+
+<strong>Default</strong> Access to Financial Facilities thresholds:
+
+<table style="width:auto; border:1px solid black; border-collapse:collapse; margin-left:0; font-size:12px;">
+  <tr style="border:1px solid black;">
+    <th style="border:1px solid black; width:250px;">Distance to Financial Facilities (meters)</th>
+    <th style="border:1px solid black; width:80px; text-align:center;">Score</th>
+  </tr>
+  <tr style="border:1px solid black;">
+    <td style="border:1px solid black;">0 - 400</td>
+    <td style="border:1px solid black; text-align:center;">5</td>
+  </tr>
+  <tr style="border:1px solid black;">
+    <td style="border:1px solid black;">401 - 800</td>
+    <td style="border:1px solid black; text-align:center;">4</td>
+  </tr>
+  <tr style="border:1px solid black;">
+    <td style="border:1px solid black;">801 - 1,200</td>
+    <td style="border:1px solid black; text-align:center;">3</td>
+  </tr>
+  <tr style="border:1px solid black;">
+    <td style="border:1px solid black;">1,201 - 2,000</td>
+    <td style="border:1px solid black; text-align:center;">2</td>
+  </tr>
+  <tr style="border:1px solid black;">
+    <td style="border:1px solid black;">2,001 - 3,000</td>
+    <td style="border:1px solid black; text-align:center;">1</td>
+  </tr>
+  <tr style="border:1px solid black;">
+    <td style="border:1px solid black;">Over 3,000</td>
+    <td style="border:1px solid black; text-align:center;">0</td>
+  </tr>
+</table>
+
+<br>
 
 **Process Access to Financial Facilities factor**
 
@@ -265,8 +439,6 @@ After completing the process, the outputs are automatically added to the Layer P
 
 The outputs consist of all factors and subfactors, as well as the aggregation of these into the final Accessibility output. All scores are assessed on a scale from 0 to 5, categorized as follows: ≤ 0.5 (Not Enabling) | 0.5–1.5 (Very Low Enablement) | 1.5–2.5 (Low Enablement) | 2.5–3.5 (Moderately Enabling) | 3.5–4.5 (Enabling) | 4.5–5.0 (Highly Enabling).
 
-<span style="color: red;">[Not working - Need to be amended]</span>
-
 The outputs are stored under the Accessibility folder within the project folder created during the setup phase as raster files. These files can be shared and further utilized for various purposes, such as visualization in QGIS or other GIS software, integration into reports, overlaying with other spatial datasets, or performing advanced geospatial analyses, such as identifying priority areas or conducting trend analysis based on the scores.
 
 If the results do not immediately appear in the Layer Panel after processing the Accessibility Dimension, you can resolve this by either adding them manually from the folder path or by right-clicking on the Accessibility Dimension and selecting **Add to map** from the context menu:
@@ -300,23 +472,3 @@ If the results do not immediately appear in the Layer Panel after processing the
 - **Input Accuracy**: Ensure all input datasets are carefully entered/selected and correspond to the correct factors and/or subfactors. Incorrect data will impact the outputs and subsequent analysis.
 
 - **Weight Adjustment**: Assign weights thoughtfully to reflect the importance of each factor in the overall analysis. After making changes, always balance the weights to ensure they sum up correctly.
-
-
-<small><a href="#ref1" id="footnote1"><sup>1</sup> Thresholds
-<p align="left">
-<small>
-    <span style="color: #505050;">
-<strong>Women's Travel Patterns</strong> factor is scored based on the distance to facilities: 0 to 400 meters: <em>score 5</em> | 401 to 800 meters: <em>score 4</em> | 801 to 1,200 meters: <em>score 3</em> | 1,201 to 1,500 meters: <em>score 2</em> | 1,501 to 2,000 meters: <em>score 1</em> | Over 2,000 meters: <em>score 0</em>
-<br>
-<strong>Access to Public Transport</strong> factor is scored based on proximity: 0 to 250 meters: <em>score 5</em> | 251 to 500 meters: <em>score 4</em> | 501 to 750 meters: <em>score 3</em> | 751 to 1,000 meters: <em>score 2</em> | 1,001 to 1,250 meters: <em>score 1</em> | Over 1,250 meters: <em>score 0</em>
-<br>
-<strong>Access to Health Facilities</strong> factor is scored as follows: 0 to 2,000 meters: <em>score 5</em> | 2,001 to 4,000 meters: <em>score 4</em> | 4,001 to 6,000 meters: <em>score 3</em> | 6,001 to 8,000 meters: <em>score 2</em> | 8,001 to 10,000 meters: <em>score 1</em> | Over 10,000 meters: <em>score 0</em>
-<br>
-<strong>Access to Education and Training Facilities</strong> factor scoring: 0 to 2,000 meters: <em>score 5</em> | 2,001 to 4,000 meters: <em>score 4</em> | 4,001 to 6,000 meters: <em>score 3</em> | 6,001 to 8,000 meters: <em>score 2</em> | 8,001 to 10,000 meters: <em>score 1</em> | Over 10,000 meters: <em>score 0</em>
-<br>
-<strong>Access to Financial Facilities</strong> factor scoring: 0 to 400 meters: <em>score 5</em> | 401 to 800 meters: <em>score 4</em> | 801 to 1,200 meters: <em>score 3</em> | 1,201 to 2,000 meters: <em>score 2</em> | 2,001 to 3,000 meters: <em>score 1</em> | Over 3,000 meters: <em>score 0</em>
-    </span>
-</small>
-
-
-</a></small>  
